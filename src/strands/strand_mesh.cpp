@@ -13,6 +13,8 @@ constexpr float kPi = 3.14159265358979323846f;
 geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings& settings) {
     geometry::Mesh mesh;
     constexpr std::size_t kMaxRadialSegments = 256;
+    // Keep accidental high-resolution strands from exhausting mobile memory.
+    constexpr std::size_t kMaxGeneratedVertices = 1'000'000;
     if (strand.points.size() < 2 || settings.radial_segments < 3 ||
         settings.radial_segments > kMaxRadialSegments) return mesh;
 
@@ -21,6 +23,8 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
     const std::size_t max_index = static_cast<std::size_t>(
         std::numeric_limits<std::uint32_t>::max());
     if (ring_count > (max_index - (settings.cap_ends ? 2u : 0u)) / sides)
+        return mesh;
+    if (ring_count > (kMaxGeneratedVertices - (settings.cap_ends ? 2u : 0u)) / sides)
         return mesh;
     if (ring_count - 1 > std::numeric_limits<std::size_t>::max() / (sides * 2))
         return mesh;
@@ -68,7 +72,10 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
         for (std::size_t side = 0; side < sides; ++side) {
             const float angle = 2.0f * kPi * static_cast<float>(side) / static_cast<float>(sides);
             const math::Vec3 offset = frame_normal * std::cos(angle) + frame_binormal * std::sin(angle);
-            mesh.vertices.push_back(point.position + offset * radius);
+            const math::Vec3 vertex = point.position + offset * radius;
+            if (!std::isfinite(vertex.x) || !std::isfinite(vertex.y) ||
+                !std::isfinite(vertex.z)) return geometry::Mesh{};
+            mesh.vertices.push_back(vertex);
         }
     }
 
