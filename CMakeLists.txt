@@ -28,6 +28,9 @@ endif()
 if(GSS_BUILD_EXAMPLES)
     add_library(gss_scene_example OBJECT examples/scene_demo.cpp)
     target_link_libraries(gss_scene_example PRIVATE GSS::glue_saliva_stuff)
+
+    add_executable(gss_mesh_inspector examples/mesh_inspector.cpp)
+    target_link_libraries(gss_mesh_inspector PRIVATE GSS::glue_saliva_stuff)
 endif()
 
 if(GSS_BUILD_TESTS)
