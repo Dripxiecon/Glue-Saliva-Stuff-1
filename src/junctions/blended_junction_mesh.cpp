@@ -67,7 +67,7 @@ geometry::Mesh build_blended_junction_mesh(
         junction.radius <= 0.0f || !std::isfinite(settings.blend_radius) ||
         settings.blend_radius < 0.0f || settings.grid_resolution < 8 ||
         settings.grid_resolution > kMaxGridResolution ||
-        settings.max_output_vertices < 3)
+        settings.max_output_vertices < 6)
         return empty;
 
     std::size_t segment_count = 0;
