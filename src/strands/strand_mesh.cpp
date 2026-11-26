@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <limits>
 
 namespace gss::strands {
 namespace {
@@ -10,10 +12,24 @@ constexpr float kPi = 3.14159265358979323846f;
 
 geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings& settings) {
     geometry::Mesh mesh;
-    if (strand.points.size() < 2 || settings.radial_segments < 3) return mesh;
+    constexpr std::size_t kMaxRadialSegments = 256;
+    if (strand.points.size() < 2 || settings.radial_segments < 3 ||
+        settings.radial_segments > kMaxRadialSegments) return mesh;
 
     const std::size_t ring_count = strand.points.size();
     const std::size_t sides = settings.radial_segments;
+    const std::size_t max_index = static_cast<std::size_t>(
+        std::numeric_limits<std::uint32_t>::max());
+    if (ring_count > (max_index - (settings.cap_ends ? 2u : 0u)) / sides)
+        return mesh;
+    if (ring_count - 1 > std::numeric_limits<std::size_t>::max() / (sides * 2))
+        return mesh;
+
+    for (const auto& point : strand.points) {
+        if (!std::isfinite(point.position.x) || !std::isfinite(point.position.y) ||
+            !std::isfinite(point.position.z) || !std::isfinite(point.radius))
+            return mesh;
+    }
     mesh.vertices.reserve(ring_count * sides + (settings.cap_ends ? 2 : 0));
     mesh.triangles.reserve((ring_count - 1) * sides * 2 + (settings.cap_ends ? sides * 2 : 0));
 
