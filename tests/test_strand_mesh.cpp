@@ -141,6 +141,8 @@ int main() {
         const auto centroid = (a + b + c) / 3.0f;
         assert(normal.dot(centroid - hub.center) > 0.0f);
     }
+    // Edge caching should produce an indexed surface with shared vertices.
+    assert(blended_sphere.vertices.size() < blended_sphere.triangles.size() * 3);
 
     auto tiny_budget = blended_settings;
     tiny_budget.max_output_vertices = 5;
