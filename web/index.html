@@ -20,7 +20,7 @@
 <div class="status" id="stats"><span>Waiting for generation</span></div><div class="notice" id="diagnostic">This is a development test bench, not the finished in-engine UI.</div></main>
 <script src="gss_demo.js"></script><script>
 const $=id=>document.getElementById(id), canvas=$('view'),gl=canvas.getContext('webgl2',{antialias:true});
-let wasm=null,meshBuffers=[],yaw=.6,pitch=.35,zoom=1.0,drag=null;
+let wasm=null,meshBuffers=[],meshData=null,yaw=.6,pitch=.35,zoom=1.0,drag=null;
 const fields=['radius','length','taper','curve','radial','resolution','blend'];
 function updateLabels(){for(const id of fields){const v=$(id).value;$ (id+'Out').textContent=(id==='radial'||id==='resolution')?v:Number(v).toFixed(2)}}
 for(const id of fields)$(id).addEventListener('input',updateLabels);updateLabels();
@@ -48,13 +48,13 @@ for(let i=0;i<vc;i++){const l=Math.hypot(normals[i*3],normals[i*3+1],normals[i*3
 meshBuffers.forEach(b=>{gl.deleteBuffer(b)});meshBuffers=[];
 function buffer(data,target){const b=gl.createBuffer();gl.bindBuffer(target,b);gl.bufferData(target,data,target===gl.ELEMENT_ARRAY_BUFFER?gl.STATIC_DRAW:gl.STATIC_DRAW);meshBuffers.push(b);return b}
 const pb=buffer(new Float32Array(positions),gl.ARRAY_BUFFER),nb=buffer(normals,gl.ARRAY_BUFFER),ib=buffer(new Uint32Array(indices),gl.ELEMENT_ARRAY_BUFFER);
-meshBuffers={pb,nb,ib,count:ic};
+meshBuffers=[pb,nb,ib];meshData={pb,nb,ib,count:ic};
 $('stats').innerHTML='<span>Vertices: <strong>'+vc+'</strong></span><span>Triangles: <strong>'+tri+'</strong></span><span>Index count: <strong>'+ic+'</strong></span>';
 $('diagnostic').className='notice';$('diagnostic').textContent=vc?'Mesh generated from the C++ geometry library. Inspect silhouettes, connection shape, and defects before accepting this feature.':'The generator returned an empty mesh for these settings.';
 }catch(e){$('diagnostic').className='notice bad';$('diagnostic').textContent='Generation failed: '+e.message}finally{$('generate').disabled=false;$('generate').textContent='Generate mesh'}}
 $('generate').addEventListener('click',rebuild);
 function resize(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);canvas.width=Math.max(1,r.width*d);canvas.height=Math.max(1,r.height*d);gl.viewport(0,0,canvas.width,canvas.height)}
-function draw(){if(gl&&prog&&meshBuffers.pb){gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(prog);gl.uniform1f(loc.yaw,yaw);gl.uniform1f(loc.pitch,pitch);gl.uniform1f(loc.zoom,zoom);gl.bindBuffer(gl.ARRAY_BUFFER,meshBuffers.pb);let a=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,meshBuffers.nb);a=gl.getAttribLocation(prog,'n');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,meshBuffers.ib);gl.drawElements(gl.TRIANGLES,meshBuffers.count,gl.UNSIGNED_INT,0)}requestAnimationFrame(draw)}
+function draw(){if(gl&&prog&&meshData){gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(prog);gl.uniform1f(loc.yaw,yaw);gl.uniform1f(loc.pitch,pitch);gl.uniform1f(loc.zoom,zoom);gl.bindBuffer(gl.ARRAY_BUFFER,meshData.pb);let a=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,meshData.nb);a=gl.getAttribLocation(prog,'n');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,meshData.ib);gl.drawElements(gl.TRIANGLES,meshData.count,gl.UNSIGNED_INT,0)}requestAnimationFrame(draw)}
 canvas.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.008;pitch=Math.max(-1.45,Math.min(1.45,pitch+(e.clientY-drag[1])*.008));drag=[e.clientX,e.clientY]});canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('wheel',e=>{zoom=Math.max(.4,Math.min(3,zoom*(e.deltaY>0?.9:1.1)));e.preventDefault()},{passive:false});
 (async()=>{try{initGL();resize();window.addEventListener('resize',resize);draw();wasm=await GSSModule();$('moduleStatus').textContent='C++ / WebAssembly ready';$('generate').disabled=false;$('generate').textContent='Generate mesh';rebuild()}catch(e){$('moduleStatus').textContent='Module error';$('diagnostic').className='notice bad';$('diagnostic').textContent=e.message}})();
 </script></body></html>
