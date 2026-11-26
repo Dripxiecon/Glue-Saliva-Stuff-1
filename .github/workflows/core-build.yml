@@ -15,3 +15,11 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Generate and validate visual inspection meshes
+        run: ./build/gss_mesh_inspector build/gss_mesh_verification.obj
+      - name: Upload visual inspection OBJ
+        uses: actions/upload-artifact@v4
+        with:
+          name: gss-mesh-verification-obj
+          path: build/gss_mesh_verification.obj
+          if-no-files-found: error
