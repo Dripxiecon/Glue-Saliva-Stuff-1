@@ -48,6 +48,15 @@ int main() {
     };
     const auto cusp_mesh = strands::build_strand_mesh(duplicate_and_cusp);
     assert(!cusp_mesh.empty());
+    // Consecutive duplicate positions collapse to one ring, avoiding zero-area strips.
+    assert(cusp_mesh.vertices.size() == 5 * 8 + 2);
+    strands::Strand zero_length;
+    zero_length.points = {
+        {{2.0f, 2.0f, 2.0f}, 0.1f},
+        {{2.0f, 2.0f, 2.0f}, 0.2f},
+        {{2.0f, 2.0f, 2.0f}, 0.1f}
+    };
+    assert(strands::build_strand_mesh(zero_length).empty());
     for (const auto& v : cusp_mesh.vertices)
         assert(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z));
 
