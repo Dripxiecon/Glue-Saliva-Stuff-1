@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <unordered_map>
 #include <vector>
 
 namespace gss::junctions {
@@ -34,20 +35,12 @@ float capsule_distance(const math::Vec3& p, const math::Vec3& a,
     return (p - closest).length() - radius;
 }
 
-void emit_triangle(geometry::Mesh& mesh, const math::Vec3& a,
-                   const math::Vec3& b, const math::Vec3& c,
-                   const math::Vec3& outward_hint) {
-    if (mesh.vertices.size() > std::numeric_limits<std::uint32_t>::max() - 3u) return;
-    const auto normal = (b - a).cross(c - a);
+void emit_triangle(geometry::Mesh& mesh, std::uint32_t a, std::uint32_t b,
+                   std::uint32_t c, const math::Vec3& outward_hint) {
+    const auto normal = (mesh.vertices[b] - mesh.vertices[a]).cross(mesh.vertices[c] - mesh.vertices[a]);
     if (normal.length() <= 1.0e-9f) return;
-    const auto base = static_cast<std::uint32_t>(mesh.vertices.size());
-    mesh.vertices.push_back(a);
-    if (normal.dot(outward_hint) < 0.0f) {
-        mesh.vertices.push_back(c); mesh.vertices.push_back(b);
-    } else {
-        mesh.vertices.push_back(b); mesh.vertices.push_back(c);
-    }
-    mesh.triangles.push_back({base, base + 1, base + 2});
+    if (normal.dot(outward_hint) < 0.0f) std::swap(b, c);
+    mesh.triangles.push_back({a, b, c});
 }
 } // namespace
 
@@ -130,6 +123,25 @@ geometry::Mesh build_blended_junction_mesh(
             }
 
     geometry::Mesh mesh;
+    constexpr std::uint64_t edge_bits = 17;
+    std::unordered_map<std::uint64_t, std::uint32_t> edge_cache;
+    const auto sample_id = [side](std::size_t x, std::size_t y, std::size_t z) {
+        return static_cast<std::uint32_t>((z * side + y) * side + x);
+    };
+    const auto get_edge_vertex = [&](std::uint32_t ia, std::uint32_t ib, const math::Vec3& a,
+                                    const math::Vec3& b, float va, float vb) {
+        const auto lo = std::min(ia, ib), hi = std::max(ia, ib);
+        const std::uint64_t key = (static_cast<std::uint64_t>(lo) << edge_bits) | hi;
+        if (const auto it = edge_cache.find(key); it != edge_cache.end()) return it->second;
+        if (mesh.vertices.size() >= settings.max_output_vertices || mesh.vertices.size() >= std::numeric_limits<std::uint32_t>::max())
+            return std::numeric_limits<std::uint32_t>::max();
+        const float d = va - vb;
+        const float t = std::abs(d) > 1.0e-12f ? std::clamp(va / d, 0.0f, 1.0f) : 0.5f;
+        const auto id = static_cast<std::uint32_t>(mesh.vertices.size());
+        mesh.vertices.push_back(a + (b - a) * t);
+        edge_cache.emplace(key, id);
+        return id;
+    };
     const std::array<math::Vec3, 8> corner_offsets{{
         {0,0,0}, {1,0,0}, {1,1,0}, {0,1,0},
         {0,0,1}, {1,0,1}, {1,1,1}, {0,1,1}
@@ -147,6 +159,7 @@ geometry::Mesh build_blended_junction_mesh(
             for (std::size_t x = 0; x < resolution; ++x) {
                 std::array<math::Vec3, 8> positions;
                 std::array<float, 8> values;
+                std::array<std::uint32_t, 8> ids;
                 for (std::size_t corner = 0; corner < 8; ++corner) {
                     const auto& offset = corner_offsets[corner];
                     const auto cx = x + static_cast<std::size_t>(offset.x);
@@ -156,15 +169,18 @@ geometry::Mesh build_blended_junction_mesh(
                                          minimum.y + step.y * static_cast<float>(cy),
                                          minimum.z + step.z * static_cast<float>(cz)};
                     values[corner] = samples[index(cx, cy, cz)];
+                    ids[corner] = sample_id(cx, cy, cz);
                 }
                 for (const auto& tetra : tetrahedra) {
                     std::array<math::Vec3, 4> p;
                     std::array<float, 4> v;
+                    std::array<std::uint32_t, 4> id;
                     for (int i = 0; i < 4; ++i) {
                         p[i] = positions[tetra[i]];
                         v[i] = values[tetra[i]];
+                        id[i] = ids[tetra[i]];
                     }
-                    std::array<math::Vec3, 4> crossings;
+                    std::array<std::uint32_t, 4> crossings;
                     std::size_t crossing_count = 0;
                     math::Vec3 inside_center{}, outside_center{};
                     std::size_t inside_count = 0, outside_count = 0;
@@ -179,10 +195,9 @@ geometry::Mesh build_blended_junction_mesh(
                     for (const auto& edge : tetra_edges) {
                         const int a = edge[0], b = edge[1];
                         if ((v[a] < 0.0f) == (v[b] < 0.0f)) continue;
-                        const float denominator = v[a] - v[b];
-                        if (std::abs(denominator) <= 1.0e-12f) continue;
-                        const float t = std::clamp(v[a] / denominator, 0.0f, 1.0f);
-                        crossings[crossing_count++] = p[a] + (p[b] - p[a]) * t;
+                        const auto vertex = get_edge_vertex(id[a], id[b], p[a], p[b], v[a], v[b]);
+                        if (vertex == std::numeric_limits<std::uint32_t>::max()) return geometry::Mesh{};
+                        crossings[crossing_count++] = vertex;
                     }
                     if (crossing_count == 3) {
                         emit_triangle(mesh, crossings[0], crossings[1], crossings[2], outward_hint);
