@@ -1,4 +1,4 @@
-#include "glue_saliva_stuff/scene/scene.hpp"
+#include "glue_saliva_stuff/scene/scene.hpp"\n#include "glue_saliva_stuff/junctions/junction.hpp"
 #include <cassert>
 #include <cmath>
 #include <limits>
@@ -72,6 +72,26 @@ int main() {
     assert(curved_mesh.vertices.size()==curved.points.size()*8+2);
     for(const auto& v:curved_mesh.vertices)
         assert(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z));
+
+    // Rounded junction hub has bounded, finite geometry.
+    junctions::Junction hub;
+    hub.center = {1.0f, 2.0f, 3.0f};
+    hub.radius = 0.25f;
+    junctions::JunctionMeshSettings hub_settings;
+    hub_settings.radial_segments = 12;
+    hub_settings.latitude_segments = 8;
+    const auto hub_mesh = junctions::build_junction_mesh(hub, hub_settings);
+    assert(hub_mesh.vertices.size() == 86);
+    assert(hub_mesh.triangles.size() == 168);
+    for (const auto& v : hub_mesh.vertices)
+        assert(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z));
+
+    junctions::Junction invalid_hub = hub;
+    invalid_hub.radius = std::numeric_limits<float>::infinity();
+    assert(junctions::build_junction_mesh(invalid_hub).empty());
+    junctions::JunctionMeshSettings huge_hub;
+    huge_hub.radial_segments = 129;
+    assert(junctions::build_junction_mesh(hub, huge_hub).empty());
 
     scene::Transform transform;
     transform.position={1.0f,2.0f,3.0f};
