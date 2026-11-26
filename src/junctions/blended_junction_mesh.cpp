@@ -36,24 +36,16 @@ float capsule_distance(const math::Vec3& p, const math::Vec3& a,
 
 void emit_triangle(geometry::Mesh& mesh, const math::Vec3& a,
                    const math::Vec3& b, const math::Vec3& c,
-                   const auto& field, float epsilon) {
-    if (mesh.vertices.size() > std::numeric_limits<std::uint32_t>::max() - 3u)
-        return;
+                   const math::Vec3& outward_hint) {
+    if (mesh.vertices.size() > std::numeric_limits<std::uint32_t>::max() - 3u) return;
     const auto normal = (b - a).cross(c - a);
     if (normal.length() <= 1.0e-9f) return;
-    const auto center = (a + b + c) / 3.0f;
-    const auto unit_normal = normal.normalized();
-    // Orient faces toward increasing signed distance (the exterior).
-    const float plus = field(center + unit_normal * epsilon);
-    const float minus = field(center - unit_normal * epsilon);
     const auto base = static_cast<std::uint32_t>(mesh.vertices.size());
     mesh.vertices.push_back(a);
-    if (plus < minus) {
-        mesh.vertices.push_back(c);
-        mesh.vertices.push_back(b);
+    if (normal.dot(outward_hint) < 0.0f) {
+        mesh.vertices.push_back(c); mesh.vertices.push_back(b);
     } else {
-        mesh.vertices.push_back(b);
-        mesh.vertices.push_back(c);
+        mesh.vertices.push_back(b); mesh.vertices.push_back(c);
     }
     mesh.triangles.push_back({base, base + 1, base + 2});
 }
@@ -149,7 +141,6 @@ geometry::Mesh build_blended_junction_mesh(
     const std::array<std::array<int, 2>, 6> tetra_edges{{
         {{0,1}}, {{0,2}}, {{0,3}}, {{1,2}}, {{1,3}}, {{2,3}}
     }};
-    const float epsilon = std::max(largest_extent / static_cast<float>(resolution) * 0.1f, 1.0e-5f);
 
     for (std::size_t z = 0; z < resolution; ++z)
         for (std::size_t y = 0; y < resolution; ++y)
@@ -175,6 +166,16 @@ geometry::Mesh build_blended_junction_mesh(
                     }
                     std::array<math::Vec3, 4> crossings;
                     std::size_t crossing_count = 0;
+                    math::Vec3 inside_center{}, outside_center{};
+                    std::size_t inside_count = 0, outside_count = 0;
+                    for (int i = 0; i < 4; ++i) {
+                        if (v[i] < 0.0f) { inside_center = inside_center + p[i]; ++inside_count; }
+                        else { outside_center = outside_center + p[i]; ++outside_count; }
+                    }
+                    if (inside_count == 0 || outside_count == 0) continue;
+                    inside_center = inside_center / static_cast<float>(inside_count);
+                    outside_center = outside_center / static_cast<float>(outside_count);
+                    const auto outward_hint = outside_center - inside_center;
                     for (const auto& edge : tetra_edges) {
                         const int a = edge[0], b = edge[1];
                         if ((v[a] < 0.0f) == (v[b] < 0.0f)) continue;
@@ -184,7 +185,7 @@ geometry::Mesh build_blended_junction_mesh(
                         crossings[crossing_count++] = p[a] + (p[b] - p[a]) * t;
                     }
                     if (crossing_count == 3) {
-                        emit_triangle(mesh, crossings[0], crossings[1], crossings[2], field, epsilon);
+                        emit_triangle(mesh, crossings[0], crossings[1], crossings[2], outward_hint);
                     } else if (crossing_count == 4) {
                         emit_triangle(mesh, crossings[0], crossings[1], crossings[2], field, epsilon);
                         emit_triangle(mesh, crossings[0], crossings[2], crossings[3], field, epsilon);
