@@ -15,8 +15,8 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
     geometry::Mesh mesh;
     constexpr std::size_t kMaxRadialSegments = 256;
     // Keep accidental high-resolution strands from exhausting mobile memory.
-    constexpr std::size_t kMaxGeneratedVertices = 1'000'000;
-    if (strand.points.size() < 2 || settings.radial_segments < 3 ||
+    constexpr std::size_t kMaxGeneratedVertices = 1'000'000;\n    constexpr std::size_t kMaxControlPoints = 65'536;
+    if (strand.points.size() < 2 || strand.points.size() > kMaxControlPoints ||\n        settings.radial_segments < 3 ||
         settings.radial_segments > kMaxRadialSegments) return mesh;
 
     std::vector<StrandPoint> points;
