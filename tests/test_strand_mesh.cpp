@@ -1,4 +1,5 @@
-#include "glue_saliva_stuff/scene/scene.hpp"\n#include "glue_saliva_stuff/junctions/junction.hpp"
+#include "glue_saliva_stuff/scene/scene.hpp"
+#include "glue_saliva_stuff/junctions/junction.hpp"
 #include <cassert>
 #include <cmath>
 #include <limits>
