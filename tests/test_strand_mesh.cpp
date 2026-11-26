@@ -90,6 +90,10 @@ int main() {
     junctions::Junction invalid_hub = hub;
     invalid_hub.radius = std::numeric_limits<float>::infinity();
     assert(junctions::build_junction_mesh(invalid_hub).empty());
+    junctions::Junction overflow_hub = hub;
+    overflow_hub.center.y = std::numeric_limits<float>::max();
+    overflow_hub.radius = std::numeric_limits<float>::max();
+    assert(junctions::build_junction_mesh(overflow_hub).empty());
     junctions::JunctionMeshSettings huge_hub;
     huge_hub.radial_segments = 129;
     assert(junctions::build_junction_mesh(hub, huge_hub).empty());
