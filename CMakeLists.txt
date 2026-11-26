@@ -8,6 +8,7 @@ option(GSS_ENABLE_GLES3 "Build the OpenGL ES 3 renderer (host must provide a cur
 add_library(glue_saliva_stuff
     src/strands/strand_mesh.cpp
     src/junctions/junction_mesh.cpp
+    src/junctions/junction_assembly.cpp
 )
 add_library(GSS::glue_saliva_stuff ALIAS glue_saliva_stuff)
 target_compile_features(glue_saliva_stuff PUBLIC cxx_std_20)
