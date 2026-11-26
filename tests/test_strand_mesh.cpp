@@ -36,6 +36,21 @@ int main() {
     overflow.points[0].radius = std::numeric_limits<float>::max();
     assert(strands::build_strand_mesh(overflow).empty());
 
+    // Repeated control points and a sharp reversal should not create NaNs.
+    strands::Strand duplicate_and_cusp;
+    duplicate_and_cusp.points = {
+        {{0.0f, 0.0f, 0.0f}, 0.08f},
+        {{0.0f, 0.0f, 0.0f}, 0.08f},
+        {{0.0f, 0.0f, 1.0f}, 0.08f},
+        {{0.0f, 0.0f, 2.0f}, 0.08f},
+        {{0.0f, 0.0f, 1.0f}, 0.08f},
+        {{0.0f, 0.0f, 0.0f}, 0.08f}
+    };
+    const auto cusp_mesh = strands::build_strand_mesh(duplicate_and_cusp);
+    assert(!cusp_mesh.empty());
+    for (const auto& v : cusp_mesh.vertices)
+        assert(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z));
+
     // A curved, non-planar strand should produce finite tube vertices.
     strands::Strand curved;
     curved.points={
