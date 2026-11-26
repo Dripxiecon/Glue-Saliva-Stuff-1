@@ -187,8 +187,8 @@ geometry::Mesh build_blended_junction_mesh(
                     if (crossing_count == 3) {
                         emit_triangle(mesh, crossings[0], crossings[1], crossings[2], outward_hint);
                     } else if (crossing_count == 4) {
-                        emit_triangle(mesh, crossings[0], crossings[1], crossings[2], field, epsilon);
-                        emit_triangle(mesh, crossings[0], crossings[2], crossings[3], field, epsilon);
+                        emit_triangle(mesh, crossings[0], crossings[1], crossings[2], outward_hint);
+                        emit_triangle(mesh, crossings[0], crossings[2], crossings[3], outward_hint);
                     }
                     if (mesh.vertices.size() > settings.max_output_vertices - 6)
                         return geometry::Mesh{};
