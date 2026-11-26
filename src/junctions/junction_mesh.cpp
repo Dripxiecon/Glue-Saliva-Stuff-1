@@ -43,7 +43,7 @@ geometry::Mesh build_junction_mesh(
 
     mesh.vertices.push_back({
         junction.center.x,
-        junction.center.y + junction.radius,
+        top_y,
         junction.center.z
     });
 
@@ -70,7 +70,7 @@ geometry::Mesh build_junction_mesh(
     const auto bottom = static_cast<std::uint32_t>(mesh.vertices.size());
     mesh.vertices.push_back({
         junction.center.x,
-        junction.center.y - junction.radius,
+        bottom_y,
         junction.center.z
     });
 
