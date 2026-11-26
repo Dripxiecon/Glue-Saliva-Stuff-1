@@ -128,6 +128,20 @@ int main() {
         assert(triangle.b < blended.vertices.size());
         assert(triangle.c < blended.vertices.size());
     }
+    // With no branches, the implicit surface is a sphere. Check its
+    // triangle winding is consistently outward after the optimization.
+    const auto blended_sphere = junctions::build_blended_junction_mesh(
+        hub, {}, blended_settings);
+    assert(!blended_sphere.empty());
+    for (const auto& triangle : blended_sphere.triangles) {
+        const auto& a = blended_sphere.vertices[triangle.a];
+        const auto& b = blended_sphere.vertices[triangle.b];
+        const auto& c = blended_sphere.vertices[triangle.c];
+        const auto normal = (b - a).cross(c - a);
+        const auto centroid = (a + b + c) / 3.0f;
+        assert(normal.dot(centroid - hub.center) > 0.0f);
+    }
+
     auto tiny_budget = blended_settings;
     tiny_budget.max_output_vertices = 5;
     assert(junctions::build_blended_junction_mesh(
