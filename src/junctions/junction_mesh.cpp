@@ -26,6 +26,11 @@ geometry::Mesh build_junction_mesh(
         settings.latitude_segments > kMaxLatitudeSegments)
         return mesh;
 
+    const float top_y = junction.center.y + junction.radius;
+    const float bottom_y = junction.center.y - junction.radius;
+    if (!std::isfinite(top_y) || !std::isfinite(bottom_y))
+        return mesh;
+
     const std::size_t sides = settings.radial_segments;
     const std::size_t latitudes = settings.latitude_segments;
     const std::size_t vertex_count = (latitudes - 1) * sides + 2;
