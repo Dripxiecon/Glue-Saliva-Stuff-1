@@ -1,6 +1,7 @@
 #include "glue_saliva_stuff/scene/scene.hpp"
 #include <cassert>
 #include <cmath>
+#include <limits>
 
 int main() {
     using namespace gss;
@@ -9,6 +10,14 @@ int main() {
     const auto generated_mesh=strands::build_strand_mesh(strand);
     assert(generated_mesh.vertices.size()==18);
     assert(generated_mesh.triangles.size()==32);
+
+    // Invalid coordinates and unreasonable tessellation settings fail safely.
+    strands::Strand invalid = strand;
+    invalid.points[1].position.y = std::numeric_limits<float>::quiet_NaN();
+    assert(strands::build_strand_mesh(invalid).empty());
+    strands::StrandMeshSettings excessive;
+    excessive.radial_segments = 257;
+    assert(strands::build_strand_mesh(strand, excessive).empty());
 
     // A curved, non-planar strand should produce finite tube vertices.
     strands::Strand curved;
