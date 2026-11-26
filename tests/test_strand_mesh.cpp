@@ -86,6 +86,16 @@ int main() {
     assert(hub_mesh.triangles.size() == 168);
     for (const auto& v : hub_mesh.vertices)
         assert(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z));
+    // Every hub triangle must have nonzero area and face away from the center.
+    for (const auto& triangle : hub_mesh.triangles) {
+        const auto& a = hub_mesh.vertices[triangle.a];
+        const auto& b = hub_mesh.vertices[triangle.b];
+        const auto& c = hub_mesh.vertices[triangle.c];
+        const auto normal = (b - a).cross(c - a);
+        const auto centroid = (a + b + c) / 3.0f;
+        assert(normal.length() > 1.0e-8f);
+        assert(normal.dot(centroid - hub.center) > 0.0f);
+    }
 
     junctions::Junction invalid_hub = hub;
     invalid_hub.radius = std::numeric_limits<float>::infinity();
