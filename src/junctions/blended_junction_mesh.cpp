@@ -11,6 +11,7 @@ namespace {
 constexpr std::size_t kMaxGridResolution = 48;
 constexpr std::size_t kMaxGridSamples = 125'000;
 constexpr std::size_t kMaxBranchSegments = 128;
+constexpr std::size_t kMaxBranches = 128;
 
 bool finite_vec(const math::Vec3& v) {
     return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
@@ -69,6 +70,8 @@ geometry::Mesh build_blended_junction_mesh(
         settings.grid_resolution > kMaxGridResolution ||
         settings.max_output_vertices < 6)
         return empty;
+
+    if (branches.size() > kMaxBranches) return empty;
 
     std::size_t segment_count = 0;
     math::Vec3 minimum = junction.center - math::Vec3{junction.radius, junction.radius, junction.radius};
