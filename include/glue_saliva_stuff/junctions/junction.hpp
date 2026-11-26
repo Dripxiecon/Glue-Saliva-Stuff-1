@@ -33,4 +33,18 @@ geometry::Mesh build_junction_assembly(
     const JunctionMeshSettings& hub_settings = {},
     const strands::StrandMeshSettings& strand_settings = {});
 
+// Generates a smooth implicit surface around the hub and branch capsules.
+// This is a bounded marching-tetrahedra mesher; it creates a blended surface
+// rather than overlapping tube/hub shells.
+struct BlendedJunctionSettings {
+    std::size_t grid_resolution{24}; // cells per axis
+    float blend_radius{0.12f};
+    std::size_t max_output_vertices{250'000};
+};
+
+geometry::Mesh build_blended_junction_mesh(
+    const Junction& junction,
+    const std::vector<strands::Strand>& branches,
+    const BlendedJunctionSettings& settings = {});
+
 } // namespace gss::junctions
