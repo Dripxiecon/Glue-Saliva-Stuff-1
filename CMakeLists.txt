@@ -9,6 +9,7 @@ add_library(glue_saliva_stuff
     src/strands/strand_mesh.cpp
     src/junctions/junction_mesh.cpp
     src/junctions/junction_assembly.cpp
+    src/junctions/blended_junction_mesh.cpp
 )
 add_library(GSS::glue_saliva_stuff ALIAS glue_saliva_stuff)
 target_compile_features(glue_saliva_stuff PUBLIC cxx_std_20)
