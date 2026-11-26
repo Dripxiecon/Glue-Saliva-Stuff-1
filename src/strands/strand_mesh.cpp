@@ -43,11 +43,24 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
 
     for (std::size_t i = 0; i < ring_count; ++i) {
         const auto& point = strand.points[i];
+        // Find the nearest distinct neighbors, so duplicate control points
+        // do not force a zero tangent. At a cusp, favor the outgoing direction.
+        std::size_t before = i;
+        std::size_t after = i;
+        while (before > 0 && (point.position - strand.points[before - 1].position).length() <= 1.0e-6f) --before;
+        while (after + 1 < ring_count && (strand.points[after + 1].position - point.position).length() <= 1.0e-6f) ++after;
+        const bool has_before = before > 0;
+        const bool has_after = after + 1 < ring_count;
+        math::Vec3 incoming = has_before ? (point.position - strand.points[before - 1].position).normalized() : math::Vec3{};
+        math::Vec3 outgoing = has_after ? (strand.points[after + 1].position - point.position).normalized() : math::Vec3{};
         math::Vec3 tangent;
-        if (i == 0) tangent = (strand.points[1].position - point.position).normalized();
-        else if (i + 1 == ring_count) tangent = (point.position - strand.points[i - 1].position).normalized();
-        else tangent = (strand.points[i + 1].position - strand.points[i - 1].position).normalized();
-
+        if (has_before && has_after) {
+            const math::Vec3 combined = (strand.points[after + 1].position - strand.points[before - 1].position).normalized();
+            tangent = (combined.length() <= 1.0e-6f || incoming.dot(outgoing) < -0.95f) ? outgoing : combined;
+        } else if (has_after) tangent = outgoing;
+        else if (has_before) tangent = incoming;
+        if (!std::isfinite(tangent.x) || !std::isfinite(tangent.y) || !std::isfinite(tangent.z))
+            return geometry::Mesh{};
         if (tangent.length() <= 1.0e-8f) tangent = i > 0 ? previous_tangent : math::Vec3{0, 0, 1};
 
         if (i == 0) {
