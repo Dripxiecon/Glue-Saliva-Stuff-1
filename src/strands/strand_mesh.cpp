@@ -65,8 +65,8 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
         while (after + 1 < ring_count && (points[after + 1].position - point.position).length() <= 1.0e-6f) ++after;
         const bool has_before = before > 0;
         const bool has_after = after + 1 < ring_count;
-        math::Vec3 incoming = has_before ? (point.position - strand.points[before - 1].position).normalized() : math::Vec3{};
-        math::Vec3 outgoing = has_after ? (strand.points[after + 1].position - point.position).normalized() : math::Vec3{};
+        math::Vec3 incoming = has_before ? (point.position - points[before - 1].position).normalized() : math::Vec3{};
+        math::Vec3 outgoing = has_after ? (points[after + 1].position - point.position).normalized() : math::Vec3{};
         math::Vec3 tangent;
         if (has_before && has_after) {
             const math::Vec3 combined = (strand.points[after + 1].position - strand.points[before - 1].position).normalized();
