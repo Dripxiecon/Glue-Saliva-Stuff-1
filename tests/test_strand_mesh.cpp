@@ -113,6 +113,26 @@ int main() {
     assert(assembly.vertices.size() == 86 + 2 * 2 * 8);
     assert(assembly.triangles.size() == 168 + 2 * 8 * 2);
 
+    // Smooth implicit junction surface blends the hub and branch rather
+    // than retaining intersecting shells.
+    junctions::BlendedJunctionSettings blended_settings;
+    blended_settings.grid_resolution = 10;
+    blended_settings.blend_radius = 0.12f;
+    const auto blended = junctions::build_blended_junction_mesh(
+        hub, {branch_a, branch_b}, blended_settings);
+    assert(!blended.empty());
+    for (const auto& vertex : blended.vertices)
+        assert(std::isfinite(vertex.x) && std::isfinite(vertex.y) && std::isfinite(vertex.z));
+    for (const auto& triangle : blended.triangles) {
+        assert(triangle.a < blended.vertices.size());
+        assert(triangle.b < blended.vertices.size());
+        assert(triangle.c < blended.vertices.size());
+    }
+    auto tiny_budget = blended_settings;
+    tiny_budget.max_output_vertices = 5;
+    assert(junctions::build_blended_junction_mesh(
+        hub, {branch_a}, tiny_budget).empty());
+
     junctions::Junction invalid_hub = hub;
     invalid_hub.radius = std::numeric_limits<float>::infinity();
     assert(junctions::build_junction_mesh(invalid_hub).empty());
