@@ -19,6 +19,23 @@ int main() {
     excessive.radial_segments = 257;
     assert(strands::build_strand_mesh(strand, excessive).empty());
 
+    // A valid but excessive mesh request must not allocate unbounded buffers.
+    strands::Strand oversized;
+    oversized.points.resize(4000);
+    for (std::size_t i = 0; i < oversized.points.size(); ++i) {
+        oversized.points[i].position = {0.0f, 0.0f, static_cast<float>(i)};
+        oversized.points[i].radius = 0.01f;
+    }
+    strands::StrandMeshSettings dense;
+    dense.radial_segments = 256;
+    assert(strands::build_strand_mesh(oversized, dense).empty());
+
+    // Finite inputs can still overflow during vertex construction.
+    strands::Strand overflow = strand;
+    overflow.points[0].position.x = std::numeric_limits<float>::max();
+    overflow.points[0].radius = std::numeric_limits<float>::max();
+    assert(strands::build_strand_mesh(overflow).empty());
+
     // A curved, non-planar strand should produce finite tube vertices.
     strands::Strand curved;
     curved.points={
