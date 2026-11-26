@@ -28,3 +28,9 @@ ctest --test-dir build --output-on-failure
 Configure with `-DGSS_ENABLE_GLES3=ON`. The application hosting the library must create and activate an OpenGL ES 3 context and provide the surface/swapchain. The renderer then draws the scene's 3D meshes using that context. This keeps platform windowing separate while the project already has its 3D scene and rendering path.
 
 The GLES renderer is an initial implementation; materials, lighting controls, and translucent rendering will be refined separately. It caches indexed meshes on the GPU and derives vertex normals by accumulating adjacent triangle normals, allowing shared-vertex surfaces such as blended junctions to shade smoothly. The overlap-based junction assembly remains available for low-cost use. The bounded blended-junction mesher uses a smooth signed-distance field and marching tetrahedra to generate a unified surface with cached edge intersections, reducing duplicate vertices. It is resolution-limited and intended for controlled procedural meshes, not a full soft-body simulation. Volume fill and lightweight secondary motion remain planned as independent modules.
+
+## Live geometry lab
+
+The `web/` test bench is an interactive browser viewport backed by the same C++ geometry library compiled to WebAssembly. It includes strand and blended-junction modes, generation controls, and orbit/zoom inspection. Adjust settings and press **Generate mesh** to rebuild the geometry; it does not use a separate JavaScript mesh mock.
+
+The GitHub Pages workflow builds the WebAssembly module and publishes the test bench from the `main` branch. The browser lab is a development tool for inspecting geometry and tuning parameters; the Android renderer and in-engine UI still require testing in the actual engine/device.
