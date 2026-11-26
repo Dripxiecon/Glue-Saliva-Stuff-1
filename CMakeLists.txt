@@ -39,3 +39,21 @@ if(GSS_BUILD_TESTS)
     target_link_libraries(gss_tests PRIVATE GSS::glue_saliva_stuff)
     add_test(NAME gss_tests COMMAND gss_tests)
 endif()
+
+if(EMSCRIPTEN)
+    add_executable(gss_web_demo web/demo.cpp)
+    target_link_libraries(gss_web_demo PRIVATE GSS::glue_saliva_stuff)
+    set_target_properties(gss_web_demo PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/site
+        OUTPUT_NAME gss_demo
+    )
+    target_link_options(gss_web_demo PRIVATE
+        "--no-entry"
+        "-sMODULARIZE=1"
+        "-sEXPORT_NAME=GSSModule"
+        "-sENVIRONMENT=web"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sEXPORTED_FUNCTIONS=['_gss_generate','_gss_vertex_count','_gss_index_count','_gss_vertices_ptr','_gss_indices_ptr']"
+        "-sEXPORTED_RUNTIME_METHODS=['HEAPF32','HEAPU32']"
+    )
+endif()
