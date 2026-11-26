@@ -38,6 +38,23 @@ int main() {
     assert(object.mesh.vertices.size()==generated_mesh.vertices.size());
     assert(object.mesh.triangles.size()==generated_mesh.triangles.size());
     assert(object.mesh.vertices[0].z==generated_mesh.vertices[0].z);
+    const auto handle = object.handle;
+    const auto old_mesh_id = object.mesh.cache_id();
+    const auto old_mesh_revision = object.mesh.revision();
+    const auto old_transform = object.transform.position;
+    const auto old_material = object.material.base_color;
+    strand.points[1].position.x = 0.75f;
+    assert(world.update_strand(handle, strand));
+    assert(world.objects.size() == 1);
+    assert(world.find(handle) == &world.objects.front());
+    assert(object.mesh.cache_id() == old_mesh_id);
+    assert(object.mesh.revision() > old_mesh_revision);
+    assert(object.transform.position.x == old_transform.x);
+    assert(object.material.base_color.x == old_material.x);
+    assert(object.mesh.vertices[0].x != generated_mesh.vertices[0].x ||
+           object.mesh.vertices[1].x != generated_mesh.vertices[1].x);
+    assert(!world.update_strand(999999, strand));
+
     geometry::Mesh tracked;
     const auto original_id=tracked.cache_id();
     const auto original_revision=tracked.revision();
