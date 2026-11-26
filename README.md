@@ -6,11 +6,15 @@ Glue & Saliva Stuff 1 lets you create stretchy strands, gooey connections, dangl
 
 Pull it, stretch it, make a mess.
 
-## Status
+## Current foundation
 
-Early standalone C++20 library. The first module generates lightweight tube meshes from strand control points. Volume fill, smooth junctions, and secondary motion are planned as separate modules.
+- Standalone C++20 core; no Blender dependency
+- 3D world transforms, perspective camera, scene objects, and renderer interface are included from the start
+- Strand control points generate triangle meshes with per-point radius
+- Optional OpenGL ES 3 renderer for Android/mobile and other GLES hosts
+- Feature-separated source and public headers
 
-## Build
+## Build the core
 
 ```sh
 cmake -S . -B build
@@ -18,4 +22,8 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-The core has no Blender dependency and is designed to be integrated into other projects through CMake.
+## Enable the GLES 3 renderer
+
+Configure with `-DGSS_ENABLE_GLES3=ON`. The application hosting the library must create and activate an OpenGL ES 3 context and provide the surface/swapchain. The renderer then draws the scene's 3D meshes using that context. This keeps platform windowing separate while the project already has its 3D scene and rendering path.
+
+The GLES renderer is an initial implementation; persistent GPU mesh caching, materials, lighting controls, and translucent rendering will be refined separately. Volume fill, smooth strand junctions, and lightweight secondary motion are planned as independent modules.
