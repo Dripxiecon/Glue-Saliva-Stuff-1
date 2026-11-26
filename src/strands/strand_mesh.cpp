@@ -69,7 +69,7 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
         math::Vec3 outgoing = has_after ? (points[after + 1].position - point.position).normalized() : math::Vec3{};
         math::Vec3 tangent;
         if (has_before && has_after) {
-            const math::Vec3 combined = (strand.points[after + 1].position - strand.points[before - 1].position).normalized();
+            const math::Vec3 combined = (points[after + 1].position - points[before - 1].position).normalized();
             tangent = (combined.length() <= 1.0e-6f || incoming.dot(outgoing) < -0.95f) ? outgoing : combined;
         } else if (has_after) tangent = outgoing;
         else if (has_before) tangent = incoming;
