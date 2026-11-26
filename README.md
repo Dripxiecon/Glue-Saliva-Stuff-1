@@ -11,7 +11,7 @@ Pull it, stretch it, make a mess.
 - Standalone C++20 core; no Blender dependency
 - 3D world transforms, perspective camera, scene objects, and renderer interface are included from the start
 - Strand control points generate triangle meshes with per-point radius
-- Rounded junction hubs can be combined with overlapping, uncapped strand branches into one mesh
+- Rounded junction hubs can be assembled with overlapping branches or generated as a smooth implicit surface
 - Optional OpenGL ES 3 renderer for Android/mobile and other GLES hosts
 - Feature-separated source and public headers
 
@@ -27,4 +27,4 @@ ctest --test-dir build --output-on-failure
 
 Configure with `-DGSS_ENABLE_GLES3=ON`. The application hosting the library must create and activate an OpenGL ES 3 context and provide the surface/swapchain. The renderer then draws the scene's 3D meshes using that context. This keeps platform windowing separate while the project already has its 3D scene and rendering path.
 
-The GLES renderer is an initial implementation; persistent GPU mesh caching, materials, lighting controls, and translucent rendering will be refined separately. The current junction assembly is an overlap-based mesh, not a watertight surface union. True smooth junction blending, volume fill, and lightweight secondary motion remain planned as independent modules.
+The GLES renderer is an initial implementation; persistent GPU mesh caching, materials, lighting controls, and translucent rendering will be refined separately. The overlap-based junction assembly remains available for low-cost use. The new bounded blended-junction mesher uses a smooth signed-distance field and marching tetrahedra to generate a unified surface; it is resolution-limited and intended for controlled procedural meshes, not a full soft-body simulation. Volume fill and lightweight secondary motion remain planned as independent modules.
