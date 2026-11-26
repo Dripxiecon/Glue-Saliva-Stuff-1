@@ -17,6 +17,10 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
     mesh.vertices.reserve(ring_count * sides + (settings.cap_ends ? 2 : 0));
     mesh.triangles.reserve((ring_count - 1) * sides * 2 + (settings.cap_ends ? sides * 2 : 0));
 
+    math::Vec3 previous_tangent{};
+    math::Vec3 frame_normal{};
+    math::Vec3 frame_binormal{};
+
     for (std::size_t i = 0; i < ring_count; ++i) {
         const auto& point = strand.points[i];
         math::Vec3 tangent;
@@ -24,15 +28,30 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
         else if (i + 1 == ring_count) tangent = (point.position - strand.points[i - 1].position).normalized();
         else tangent = (strand.points[i + 1].position - strand.points[i - 1].position).normalized();
 
-        // Choose a stable reference axis that is not parallel to the tangent.
-        const math::Vec3 reference = std::abs(tangent.y) < 0.9f ? math::Vec3{0, 1, 0} : math::Vec3{1, 0, 0};
-        const math::Vec3 normal = tangent.cross(reference).normalized();
-        const math::Vec3 binormal = tangent.cross(normal).normalized();
-        const float radius = std::max(0.0f, point.radius);
+        if (tangent.length() <= 1.0e-8f) tangent = i > 0 ? previous_tangent : math::Vec3{0, 0, 1};
 
+        if (i == 0) {
+            const math::Vec3 reference = std::abs(tangent.y) < 0.9f
+                ? math::Vec3{0, 1, 0} : math::Vec3{1, 0, 0};
+            frame_normal = tangent.cross(reference).normalized();
+        } else {
+            // Parallel-transport approximation: keep the previous frame normal,
+            // projected onto the new tangent's perpendicular plane.
+            frame_normal = (frame_normal - tangent * frame_normal.dot(tangent)).normalized();
+            if (frame_normal.length() <= 1.0e-8f) {
+                const math::Vec3 reference = std::abs(tangent.y) < 0.9f
+                    ? math::Vec3{0, 1, 0} : math::Vec3{1, 0, 0};
+                frame_normal = tangent.cross(reference).normalized();
+            }
+        }
+        frame_binormal = tangent.cross(frame_normal).normalized();
+        frame_normal = frame_binormal.cross(tangent).normalized();
+        previous_tangent = tangent;
+
+        const float radius = std::max(0.0f, point.radius);
         for (std::size_t side = 0; side < sides; ++side) {
             const float angle = 2.0f * kPi * static_cast<float>(side) / static_cast<float>(sides);
-            const math::Vec3 offset = normal * std::cos(angle) + binormal * std::sin(angle);
+            const math::Vec3 offset = frame_normal * std::cos(angle) + frame_binormal * std::sin(angle);
             mesh.vertices.push_back(point.position + offset * radius);
         }
     }
@@ -64,5 +83,4 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
 
     return mesh;
 }
-
 } // namespace gss::strands
