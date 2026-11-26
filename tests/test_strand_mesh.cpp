@@ -1,5 +1,6 @@
 #include "glue_saliva_stuff/scene/scene.hpp"
 #include <cassert>
+#include <cmath>
 
 int main() {
     using namespace gss;
@@ -8,6 +9,19 @@ int main() {
     const auto generated_mesh=strands::build_strand_mesh(strand);
     assert(generated_mesh.vertices.size()==18);
     assert(generated_mesh.triangles.size()==32);
+
+    // A curved, non-planar strand should produce finite tube vertices.
+    strands::Strand curved;
+    curved.points={
+        {{0.0f,0.0f,0.0f},0.12f},
+        {{0.0f,0.8f,0.7f},0.10f},
+        {{0.7f,1.0f,1.2f},0.08f},
+        {{1.1f,0.5f,1.8f},0.05f}
+    };
+    const auto curved_mesh=strands::build_strand_mesh(curved);
+    assert(curved_mesh.vertices.size()==curved.points.size()*8+2);
+    for(const auto& v:curved_mesh.vertices)
+        assert(std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z));
 
     scene::Transform transform;
     transform.position={1.0f,2.0f,3.0f};
