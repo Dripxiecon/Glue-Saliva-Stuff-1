@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 namespace gss::strands {
 namespace {
@@ -18,7 +19,20 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
     if (strand.points.size() < 2 || settings.radial_segments < 3 ||
         settings.radial_segments > kMaxRadialSegments) return mesh;
 
-    const std::size_t ring_count = strand.points.size();
+    std::vector<StrandPoint> points;
+    points.reserve(strand.points.size());
+    constexpr float kDuplicateDistance = 1.0e-6f;
+    for (const auto& point : strand.points) {
+        if (points.empty() || (point.position - points.back().position).length() > kDuplicateDistance) {
+            points.push_back(point);
+        } else {
+            // Keep the widest radius when several control points occupy one location.
+            points.back().radius = std::max(points.back().radius, point.radius);
+        }
+    }
+    if (points.size() < 2) return mesh;
+
+    const std::size_t ring_count = points.size();
     const std::size_t sides = settings.radial_segments;
     const std::size_t max_index = static_cast<std::size_t>(
         std::numeric_limits<std::uint32_t>::max());
@@ -42,13 +56,13 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
     math::Vec3 frame_binormal{};
 
     for (std::size_t i = 0; i < ring_count; ++i) {
-        const auto& point = strand.points[i];
+        const auto& point = points[i];
         // Find the nearest distinct neighbors, so duplicate control points
         // do not force a zero tangent. At a cusp, favor the outgoing direction.
         std::size_t before = i;
         std::size_t after = i;
-        while (before > 0 && (point.position - strand.points[before - 1].position).length() <= 1.0e-6f) --before;
-        while (after + 1 < ring_count && (strand.points[after + 1].position - point.position).length() <= 1.0e-6f) ++after;
+        while (before > 0 && (point.position - points[before - 1].position).length() <= 1.0e-6f) --before;
+        while (after + 1 < ring_count && (points[after + 1].position - point.position).length() <= 1.0e-6f) ++after;
         const bool has_before = before > 0;
         const bool has_after = after + 1 < ring_count;
         math::Vec3 incoming = has_before ? (point.position - strand.points[before - 1].position).normalized() : math::Vec3{};
@@ -106,9 +120,9 @@ geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings&
 
     if (settings.cap_ends) {
         const auto start_center = static_cast<std::uint32_t>(mesh.vertices.size());
-        mesh.vertices.push_back(strand.points.front().position);
+        mesh.vertices.push_back(points.front().position);
         const auto end_center = static_cast<std::uint32_t>(mesh.vertices.size());
-        mesh.vertices.push_back(strand.points.back().position);
+        mesh.vertices.push_back(points.back().position);
         const std::size_t last_ring = (ring_count - 1) * sides;
         for (std::size_t side = 0; side < sides; ++side) {
             const auto next = (side + 1) % sides;
