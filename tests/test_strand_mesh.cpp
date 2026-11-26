@@ -38,5 +38,13 @@ int main() {
     assert(object.mesh.vertices.size()==generated_mesh.vertices.size());
     assert(object.mesh.triangles.size()==generated_mesh.triangles.size());
     assert(object.mesh.vertices[0].z==generated_mesh.vertices[0].z);
+    geometry::Mesh tracked;
+    const auto original_id=tracked.cache_id();
+    const auto original_revision=tracked.revision();
+    tracked.vertices.push_back({0.0f,0.0f,0.0f});
+    tracked.mark_dirty();
+    assert(tracked.revision()>original_revision);
+    geometry::Mesh copied=tracked;
+    assert(copied.cache_id()!=original_id);
     return 0;
 }
