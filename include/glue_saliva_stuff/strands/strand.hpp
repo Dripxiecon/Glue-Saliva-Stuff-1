@@ -21,8 +21,8 @@ struct StrandMeshSettings {
     bool cap_ends{true};
 };
 
-// Builds a tube along a strand's points. Radius is interpolated linearly
-// between points; a later implementation can add taper profiles and RMF frames.
+// Builds a tube with a transported local frame to reduce unwanted twisting
+// along curved paths. Radius is read from each strand point.
 geometry::Mesh build_strand_mesh(const Strand& strand, const StrandMeshSettings& settings = {});
 
 } // namespace gss::strands
