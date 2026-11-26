@@ -8,7 +8,8 @@ GLuint shader(GLenum type,const char*s){GLuint x=glCreateShader(type);glShaderSo
 }
 Gles3Renderer::~Gles3Renderer(){shutdown();}
 bool Gles3Renderer::initialize(){
- const char*vs="#version 300 es\nprecision highp float;layout(location=0)in vec3 p;layout(location=1)in vec3 n;uniform mat4 uMVP;uniform mat4 uModel;out vec3 N;void main(){N=mat3(uModel)*n;gl_Position=uMVP*vec4(p,1.0);}";
+ if(program_)shutdown();
+ const char*vs="#version 300 es\nprecision highp float;layout(location=0)in vec3 p;layout(location=1)in vec3 n;uniform mat4 uMVP;uniform mat4 uModel;out vec3 N;void main(){mat3 m=mat3(uModel);float d=determinant(m);mat3 normalMatrix=abs(d)>1e-8?transpose(inverse(m)):m;N=normalMatrix*n;gl_Position=uMVP*vec4(p,1.0);}";
  const char*fs="#version 300 es\nprecision mediump float;in vec3 N;uniform vec3 uColor;uniform float uOpacity;out vec4 c;void main(){float l=.28+.72*max(dot(normalize(N),normalize(vec3(.4,.8,.5))),0.);c=vec4(uColor*l,uOpacity);}";
  GLuint a=shader(GL_VERTEX_SHADER,vs),b=shader(GL_FRAGMENT_SHADER,fs);if(!a||!b){if(a)glDeleteShader(a);if(b)glDeleteShader(b);return false;}
  program_=glCreateProgram();glAttachShader(program_,a);glAttachShader(program_,b);glLinkProgram(program_);glDeleteShader(a);glDeleteShader(b);GLint ok=0;glGetProgramiv(program_,GL_LINK_STATUS,&ok);if(!ok){shutdown();return false;}
