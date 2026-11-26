@@ -16,6 +16,10 @@ bool append_mesh(geometry::Mesh& destination, const geometry::Mesh& source) {
             source.vertices.size())
         return false;
 
+    if (source.triangles.size() >
+        std::numeric_limits<std::size_t>::max() - destination.triangles.size())
+        return false;
+
     const auto base = static_cast<std::uint32_t>(destination.vertices.size());
     destination.vertices.insert(destination.vertices.end(),
                                source.vertices.begin(), source.vertices.end());
