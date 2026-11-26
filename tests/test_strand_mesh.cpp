@@ -97,6 +97,22 @@ int main() {
         assert(normal.dot(centroid - hub.center) > 0.0f);
     }
 
+    // Branch tubes are combined into one mesh with their ends hidden inside
+    // the hub. Open branch ends avoid internal cap disks.
+    strands::Strand branch_a;
+    branch_a.points = {{{1.0f, 2.0f, 3.0f}, 0.08f},
+                       {{2.0f, 2.0f, 3.0f}, 0.08f}};
+    strands::Strand branch_b;
+    branch_b.points = {{{1.0f, 2.0f, 3.0f}, 0.08f},
+                       {{0.0f, 2.0f, 3.0f}, 0.08f}};
+    strands::StrandMeshSettings branch_settings;
+    branch_settings.radial_segments = 8;
+    branch_settings.cap_ends = true; // assembly deliberately disables caps
+    const auto assembly = junctions::build_junction_assembly(
+        hub, {branch_a, branch_b}, hub_settings, branch_settings);
+    assert(assembly.vertices.size() == 86 + 2 * 2 * 8);
+    assert(assembly.triangles.size() == 168 + 2 * 8 * 2);
+
     junctions::Junction invalid_hub = hub;
     invalid_hub.radius = std::numeric_limits<float>::infinity();
     assert(junctions::build_junction_mesh(invalid_hub).empty());
