@@ -1,5 +1,6 @@
 #include "glue_saliva_stuff/scene/scene.hpp"
 #include "glue_saliva_stuff/strands/strand.hpp"
+#include <utility>
 
 // Host-side scene setup example. Call scene.render(renderer, surfaceWidth,
 // surfaceHeight) each frame after the host activates its graphics context.
