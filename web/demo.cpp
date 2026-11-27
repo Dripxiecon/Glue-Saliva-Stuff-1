@@ -14,6 +14,33 @@ gss::strands::Strand make_strand(float length, float radius, float taper, float 
               {{length*0.5f,0.0f,side*0.25f},r1}};
     return s;
 }
+gss::geometry::Mesh build_stretched_sheet(float length, float radius, float taper, float curve, int radial) {
+    using namespace gss;
+    geometry::Mesh mesh;
+    const int rings=64, sides=std::clamp(radial,8,48);
+    const float sheet_width=radius*3.4f;
+    for(int i=0;i<=rings;++i){
+        const float t=static_cast<float>(i)/rings;
+        const float x=(t-0.5f)*length;
+        const float envelope=std::pow(std::max(0.015f,std::sin(3.14159265f*t)),0.65f);
+        const float width=sheet_width*envelope*(0.75f+0.45f*std::sin(t*6.2831853f));
+        const float thickness=std::max(0.006f,radius*0.18f)*envelope;
+        const float y=curve*std::sin(t*3.14159265f);
+        for(int j=0;j<sides;++j){
+            const float a=6.2831853f*static_cast<float>(j)/sides;
+            mesh.vertices.push_back({x,y+std::cos(a)*width*(1.0f-taper*0.25f*t),std::sin(a)*thickness});
+        }
+    }
+    for(int i=0;i<rings;++i)for(int j=0;j<sides;++j){
+        const auto a=static_cast<std::uint32_t>(i*sides+j);
+        const auto b=static_cast<std::uint32_t>(i*sides+(j+1)%sides);
+        const auto c=static_cast<std::uint32_t>((i+1)*sides+(j+1)%sides);
+        const auto d=static_cast<std::uint32_t>((i+1)*sides+j);
+        mesh.triangles.push_back({a,b,c});mesh.triangles.push_back({a,c,d});
+    }
+    mesh.mark_dirty();
+    return mesh;
+}
 void store(const gss::geometry::Mesh& m) {
     vertices.clear(); indices.clear();
     vertices.reserve(m.vertices.size()*3); indices.reserve(m.triangles.size()*3);
