@@ -1,6 +1,7 @@
 #include "glue_saliva_stuff/junctions/junction.hpp"
 #include <emscripten/emscripten.h>
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 namespace {
@@ -53,8 +54,11 @@ EMSCRIPTEN_KEEPALIVE int gss_generate(int mode,int radial,int resolution,float r
     using namespace gss;
     strands::StrandMeshSettings ss; ss.radial_segments=static_cast<std::size_t>(std::clamp(radial,3,64));
     const auto strand=make_strand(std::max(0.2f,length),std::max(0.005f,radius),std::clamp(taper,0.0f,0.95f),curve,0.0f);
-    if(mode==0){store(strands::build_strand_mesh(strand,ss));}
-    else {
+    if(mode==0){
+        store(strands::build_strand_mesh(strand,ss));
+    } else if(mode==2) {
+        store(build_stretched_sheet(std::max(0.2f,length),std::max(0.005f,radius),std::clamp(taper,0.0f,0.95f),curve,radial));
+    } else {
         junctions::Junction hub{{0,0,0},std::max(0.03f,radius*1.25f)};
         auto left=make_strand(length,radius,taper,curve,-1.0f);
         auto right=make_strand(length,radius,taper,-curve,1.0f);
