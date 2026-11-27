@@ -29,7 +29,7 @@ const vs=`#version 300 es
 in vec3 p;in vec3 n;uniform float yaw;uniform float pitch;uniform float zoom;out float light;
 void main(){float cy=cos(yaw),sy=sin(yaw),cp=cos(pitch),sp=sin(pitch);vec3 q=vec3(cy*p.x+sy*p.z,p.y,-sy*p.x+cy*p.z);q=vec3(q.x,cp*q.y-sp*q.z,sp*q.y+cp*q.z);gl_Position=vec4(q.x*zoom,q.y*zoom,q.z*.25,1.0);light=.25+.75*max(dot(normalize(vec3(cy*n.x+sy*n.z,cp*n.y-sp*n.z,sp*n.y+cp*n.z)),normalize(vec3(.3,.7,1.))),0.0);}`;
 const fs=`#version 300 es
-precision highp float;in float light;out vec4 color;void main(){color=vec4(vec3(.65,.52,.98)*light,1.0);}`;
+precision highp float;in float light;out vec4 color;void main(){color=vec4(vec3(.82,.76,.64)*light,1.0);}`;
 function shader(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
 function program(){const p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p}
 let prog=null,loc={};
