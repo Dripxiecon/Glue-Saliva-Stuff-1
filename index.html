@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GSS Live Geometry Lab</title>
+<style>
+:root{color-scheme:dark;font:14px system-ui;background:#101116;color:#e9e6ee}*{box-sizing:border-box}body{margin:0;display:grid;grid-template-columns:290px 1fr;min-height:100vh}aside{padding:18px;background:#19171f;border-right:1px solid #34313d;overflow:auto}h1{font-size:20px;margin:0 0 4px}p{color:#aaa4b5;line-height:1.45}.control{margin:18px 0}.control label{display:flex;justify-content:space-between;gap:12px;margin-bottom:7px;color:#d8d3df}.control output{font-variant-numeric:tabular-nums;color:#bba5ff}input,select{width:100%;accent-color:#a58aff}button{width:100%;border:0;border-radius:9px;background:#9b83ff;color:#17121f;font-weight:700;padding:12px;margin:12px 0;cursor:pointer}button:disabled{opacity:.5}.hint{font-size:12px;color:#938d9e}main{min-width:0;display:flex;flex-direction:column;padding:16px;gap:12px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px}.viewport{position:relative;flex:1;min-height:420px;border:1px solid #35313e;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#292332,#0c0b10 70%)}canvas{width:100%;height:100%;display:block;touch-action:none}.status{display:flex;gap:16px;flex-wrap:wrap;color:#bcb5c8;font-size:12px}.status strong{color:#eee}.notice{padding:10px 12px;border:1px solid #454050;border-radius:8px;font-size:12px;color:#bdb6c8}.notice.bad{border-color:#8f4b54;color:#ffb8c0}@media(max-width:760px){body{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid #34313d}main{min-height:55vh}.viewport{min-height:360px}.controls{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}}
+</style></head>
+<body><aside><h1>GSS Live Geometry Lab</h1><p>Generate real meshes from the C++ library compiled to WebAssembly. Change parameters, regenerate, and inspect the result in 3D.</p>
+<div class="control"><label for="mode">Geometry <output id="modeOut">Strand</output></label><select id="mode"><option value="0">Tapered strand</option><option value="1">Blended junction</option></select></div>
+<div class="controls">
+<div class="control"><label for="radius">Base radius <output id="radiusOut"></output></label><input id="radius" type="range" min=".03" max=".35" step=".01" value=".14"></div>
+<div class="control"><label for="length">Strand length <output id="lengthOut"></output></label><input id="length" type="range" min=".4" max="3.5" step=".1" value="2"></div>
+<div class="control"><label for="taper">Taper <output id="taperOut"></output></label><input id="taper" type="range" min="0" max=".9" step=".05" value=".55"></div>
+<div class="control"><label for="curve">Curve <output id="curveOut"></output></label><input id="curve" type="range" min="-.8" max=".8" step=".05" value=".35"></div>
+<div class="control"><label for="radial">Radial segments <output id="radialOut"></output></label><input id="radial" type="range" min="3" max="32" step="1" value="12"></div>
+<div class="control" id="resolutionControl"><label for="resolution">Grid resolution <output id="resolutionOut"></output></label><input id="resolution" type="range" min="8" max="40" step="1" value="24"></div>
+<div class="control" id="blendControl"><label for="blend">Blend radius <output id="blendOut"></output></label><input id="blend" type="range" min="0" max=".5" step=".01" value=".18"></div>
+</div>
+<button id="generate" disabled>Loading geometry module…</button><p class="hint">Drag to orbit · scroll/pinch to zoom · settings apply when Generate is pressed.</p></aside>
+<main><div class="top"><strong>Live mesh viewport</strong><span class="hint" id="moduleStatus">Loading WebAssembly</span></div><div class="viewport"><canvas id="view"></canvas></div>
+<div class="status" id="stats"><span>Waiting for generation</span></div><div class="notice" id="diagnostic">This is a development test bench, not the finished in-engine UI.</div></main>
+<script src="gss_demo.js"></script><script>
+const $=id=>document.getElementById(id), canvas=$('view'),gl=canvas.getContext('webgl2',{antialias:true});
+let wasm=null,meshBuffers=[],meshData=null,yaw=.6,pitch=.35,zoom=1.0,drag=null;
+const fields=['radius','length','taper','curve','radial','resolution','blend'];
+function updateLabels(){for(const id of fields){const v=$(id).value;$ (id+'Out').textContent=(id==='radial'||id==='resolution')?v:Number(v).toFixed(2)}}
+for(const id of fields)$(id).addEventListener('input',updateLabels);updateLabels();
+$('mode').addEventListener('change',()=>{const j=$('mode').value==='1';$('resolutionControl').style.display=j?'block':'none';$('blendControl').style.display=j?'block':'none';$('modeOut').textContent=j?'Blended junction':'Strand'});
+const vs=`#version 300 es
+in vec3 p;in vec3 n;uniform float yaw;uniform float pitch;uniform float zoom;out float light;
+void main(){float cy=cos(yaw),sy=sin(yaw),cp=cos(pitch),sp=sin(pitch);vec3 q=vec3(cy*p.x+sy*p.z,p.y,-sy*p.x+cy*p.z);q=vec3(q.x,cp*q.y-sp*q.z,sp*q.y+cp*q.z);gl_Position=vec4(q.x*zoom,q.y*zoom,q.z*.25,1.0);light=.25+.75*max(dot(normalize(vec3(cy*n.x+sy*n.z,cp*n.y-sp*n.z,sp*n.y+cp*n.z)),normalize(vec3(.3,.7,1.))),0.0);}`;
+const fs=`#version 300 es
+precision highp float;in float light;out vec4 color;void main(){color=vec4(vec3(.65,.52,.98)*light,1.0);}`;
+function shader(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
+function program(){const p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p}
+let prog=null,loc={};
+function initGL(){if(!gl)throw Error('WebGL2 is not available in this browser');prog=program();for(const n of ['yaw','pitch','zoom'])loc[n]=gl.getUniformLocation(prog,n);gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.clearColor(0,0,0,0)}
+function rebuild(){if(!wasm)return;$('generate').disabled=true;$('generate').textContent='Generating…';try{
+const tri=wasm._gss_generate(Number($('mode').value),+ $('radial').value,+ $('resolution').value,+ $('radius').value,+ $('length').value,+ $('taper').value,+ $('curve').value,+ $('blend').value);
+const vc=wasm._gss_vertex_count(),ic=wasm._gss_index_count(),vp=wasm._gss_vertices_ptr(),ip=wasm._gss_indices_ptr();
+const v=new Float32Array(wasm.HEAPF32.buffer,vp,vc*3),idx=new Uint32Array(wasm.HEAPU32.buffer,ip,ic);
+const positions=Array.from(v),indices=Array.from(idx),normals=new Float32Array(vc*3);
+let min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+for(let i=0;i<vc;i++)for(let a=0;a<3;a++){min[a]=Math.min(min[a],v[i*3+a]);max[a]=Math.max(max[a],v[i*3+a])}
+const center=min.map((x,a)=>(x+max[a])/2),scale=1.8/Math.max(...max.map((x,a)=>x-min[a]),.001);
+for(let i=0;i<vc;i++)for(let a=0;a<3;a++)positions[i*3+a]=(v[i*3+a]-center[a])*scale;
+for(let i=0;i<ic;i+=3){const a=idx[i],b=idx[i+1],c=idx[i+2],u=[positions[b*3]-positions[a*3],positions[b*3+1]-positions[a*3+1],positions[b*3+2]-positions[a*3+2]],w=[positions[c*3]-positions[a*3],positions[c*3+1]-positions[a*3+1],positions[c*3+2]-positions[a*3+2]],n=[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]];for(const k of [a,b,c])for(let d=0;d<3;d++)normals[k*3+d]+=n[d]}
+for(let i=0;i<vc;i++){const l=Math.hypot(normals[i*3],normals[i*3+1],normals[i*3+2])||1;for(let d=0;d<3;d++)normals[i*3+d]/=l}
+meshBuffers.forEach(b=>{gl.deleteBuffer(b)});meshBuffers=[];
+function buffer(data,target){const b=gl.createBuffer();gl.bindBuffer(target,b);gl.bufferData(target,data,target===gl.ELEMENT_ARRAY_BUFFER?gl.STATIC_DRAW:gl.STATIC_DRAW);meshBuffers.push(b);return b}
+const pb=buffer(new Float32Array(positions),gl.ARRAY_BUFFER),nb=buffer(normals,gl.ARRAY_BUFFER),ib=buffer(new Uint32Array(indices),gl.ELEMENT_ARRAY_BUFFER);
+meshBuffers=[pb,nb,ib];meshData={pb,nb,ib,count:ic};
+$('stats').innerHTML='<span>Vertices: <strong>'+vc+'</strong></span><span>Triangles: <strong>'+tri+'</strong></span><span>Index count: <strong>'+ic+'</strong></span>';
+$('diagnostic').className='notice';$('diagnostic').textContent=vc?'Mesh generated from the C++ geometry library. Inspect silhouettes, connection shape, and defects before accepting this feature.':'The generator returned an empty mesh for these settings.';
+}catch(e){$('diagnostic').className='notice bad';$('diagnostic').textContent='Generation failed: '+e.message}finally{$('generate').disabled=false;$('generate').textContent='Generate mesh'}}
+$('generate').addEventListener('click',rebuild);
+function resize(){const r=canvas.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);canvas.width=Math.max(1,r.width*d);canvas.height=Math.max(1,r.height*d);gl.viewport(0,0,canvas.width,canvas.height)}
+function draw(){if(gl&&prog&&meshData){gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(prog);gl.uniform1f(loc.yaw,yaw);gl.uniform1f(loc.pitch,pitch);gl.uniform1f(loc.zoom,zoom);gl.bindBuffer(gl.ARRAY_BUFFER,meshData.pb);let a=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,meshData.nb);a=gl.getAttribLocation(prog,'n');gl.enableVertexAttribArray(a);gl.vertexAttribPointer(a,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,meshData.ib);gl.drawElements(gl.TRIANGLES,meshData.count,gl.UNSIGNED_INT,0)}requestAnimationFrame(draw)}
+canvas.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId)});canvas.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.008;pitch=Math.max(-1.45,Math.min(1.45,pitch+(e.clientY-drag[1])*.008));drag=[e.clientX,e.clientY]});canvas.addEventListener('pointerup',()=>drag=null);canvas.addEventListener('wheel',e=>{zoom=Math.max(.4,Math.min(3,zoom*(e.deltaY>0?.9:1.1)));e.preventDefault()},{passive:false});
+(async()=>{try{initGL();resize();window.addEventListener('resize',resize);draw();wasm=await GSSModule();$('moduleStatus').textContent='C++ / WebAssembly ready';$('generate').disabled=false;$('generate').textContent='Generate mesh';rebuild()}catch(e){$('moduleStatus').textContent='Module error';$('diagnostic').className='notice bad';$('diagnostic').textContent=e.message}})();
+</script></body></html>
