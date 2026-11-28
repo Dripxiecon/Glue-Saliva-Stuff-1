@@ -20,7 +20,7 @@ jobs:
       - name: Install Emscripten
         uses: mymindstorm/setup-emsdk@v14
       - name: Configure WebAssembly build
-        run: emcmake cmake -S . -B build-web -DGSS_BUILD_TESTS=OFF -DGSS_BUILD_EXAMPLES=OFF
+        run: emcmake cmake -S . -B build-web -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DGSS_BUILD_TESTS=OFF -DGSS_BUILD_EXAMPLES=OFF
       - name: Build live geometry module
         run: cmake --build build-web --parallel
       - name: Assemble site
