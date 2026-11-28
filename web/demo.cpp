@@ -16,12 +16,16 @@ gss::strands::Strand make_strand(float length, float radius, float taper, float 
               {{length*0.5f,0.0f,side*0.25f},r1}};
     return s;
 }
-gss::geometry::Mesh build_stretched_sheet(float length, float radius, float taper, float curve, int radial) {
+gss::geometry::Mesh build_stretched_sheet(float length, float radius, float taper, float curve, int radial, gss::math::Vec3 start, gss::math::Vec3 end) {
     using namespace gss;
     using math::Vec3;
     geometry::Mesh mesh;
     constexpr float pi=3.14159265359f;
     const float scale=std::clamp(length/2.0f,0.55f,1.5f);
+    const Vec3 delta=end-start;
+    const Vec3 path=delta.normalized();
+    Vec3 curveAxis=path.cross({0.0f,0.0f,1.0f}).normalized();
+    if(curveAxis.length()<0.001f) curveAxis=path.cross({0.0f,1.0f,0.0f}).normalized();
     const float r=std::max(0.018f,radius);
     const int sides=std::clamp(radial*2,16,36);
     const int rings=80;
@@ -74,10 +78,10 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
     // One emitted liquid stream. The central sphere-like bulge is a local
     // radius deformation of this same tube, not a second intersecting tube.
     auto mainCenter=[=](float t) {
-        const float impact=std::clamp(t/0.84f,0.0f,1.0f);
-        return Vec3{-0.28f*scale+0.18f*scale*std::sin(t*pi*1.4f)+curve*0.10f*std::sin(t*pi),
-                     1.65f*scale-2.30f*scale*t,
-                     0.04f*scale*std::sin(t*pi*2.0f)};
+        const float bulgeDrift=curve*std::sin(pi*t);
+        return start+delta*t+curveAxis*bulgeDrift
+                    +Vec3{0.035f*scale*std::sin(t*pi*2.0f),0.0f,
+                          0.025f*scale*std::sin(t*pi*3.0f)};
     };
     auto mainRadius=[=](float t) {
         const float bulge=std::exp(-std::pow((t-0.43f)/0.105f,2.0f));
@@ -88,13 +92,12 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
 
     // Impact split: the stream separates into two ground-hugging branches
     // only near the landing point, then spreads into shallow puddles.
-    const Vec3 impact{-0.20f*scale,-0.65f*scale,0.0f};
-    auto branch=[&](float side) {
+    const Vec3 impact=end;
+    auto branch=[=](float side) {
         auto center=[=](float t) {
-            const float x=impact.x+side*(0.10f+0.88f*t)*scale;
-            const float y=impact.y-0.02f*scale+0.08f*scale*std::sin(pi*t);
-            const float z=impact.z+side*0.05f*scale*std::sin(pi*t);
-            return Vec3{x,y,z};
+            const Vec3 lateral{side*(0.10f+0.88f*t)*scale,0.0f,
+                               side*0.18f*scale*std::sin(pi*t)};
+            return impact+lateral+Vec3{0.0f,0.025f*scale*std::sin(pi*t),0.0f};
         };
         auto rad=[=](float t) {
             const float start=0.78f, end=0.20f;
@@ -108,11 +111,11 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
 
     // Falling droplets detach from the stream; the small flattened deposits
     // on the floor are their impact puddles. A few droplets remain airborne.
-    add_blob({-0.18f*scale,0.72f*scale,0.08f*scale},{r*0.13f,r*0.18f,r*0.13f},8,12);
-    add_blob({-0.10f*scale,0.28f*scale,0.12f*scale},{r*0.10f,r*0.14f,r*0.10f},8,12);
-    add_blob({-0.22f*scale,-0.02f*scale,-0.10f*scale},{r*0.11f,r*0.15f,r*0.11f},8,12);
-    add_blob({-1.02f*scale,-0.70f*scale,0.02f},{r*0.32f,r*0.07f,r*0.24f},10,16);
-    add_blob({0.72f*scale,-0.70f*scale,-0.02f},{r*0.28f,r*0.06f,r*0.20f},10,16);
+    add_blob(start+delta*0.28f+Vec3{0.04f*scale,0.06f*scale,0.05f*scale},{r*0.13f,r*0.18f,r*0.13f},8,12);
+    add_blob(start+delta*0.54f+Vec3{-0.04f*scale,-0.04f*scale,0.07f*scale},{r*0.10f,r*0.14f,r*0.10f},8,12);
+    add_blob(start+delta*0.78f+Vec3{0.03f*scale,-0.08f*scale,-0.06f*scale},{r*0.11f,r*0.15f,r*0.11f},8,12);
+    add_blob({end.x-0.92f*scale,end.y-0.035f*scale,end.z},{r*0.32f,r*0.07f,r*0.24f},10,16);
+    add_blob({end.x+0.92f*scale,end.y-0.035f*scale,end.z},{r*0.28f,r*0.06f,r*0.20f},10,16);
     mesh.mark_dirty();
     return mesh;
 }
@@ -124,14 +127,14 @@ void store(const gss::geometry::Mesh& m) {
 }
 }
 extern "C" {
-EMSCRIPTEN_KEEPALIVE int gss_generate(int mode,int radial,int resolution,float radius,float length,float taper,float curve,float blend) {
+EMSCRIPTEN_KEEPALIVE int gss_generate(int mode,int radial,int resolution,float radius,float length,float taper,float curve,float blend,float sx,float sy,float sz,float ex,float ey,float ez) {
     using namespace gss;
     strands::StrandMeshSettings ss; ss.radial_segments=static_cast<std::size_t>(std::clamp(radial,3,64));
     const auto strand=make_strand(std::max(0.2f,length),std::max(0.005f,radius),std::clamp(taper,0.0f,0.95f),curve,0.0f);
     if(mode==0){
         store(strands::build_strand_mesh(strand,ss));
     } else if(mode==2) {
-        store(build_stretched_sheet(std::max(0.2f,length),std::max(0.005f,radius),std::clamp(taper,0.0f,0.95f),curve,radial));
+        store(build_stretched_sheet(std::max(0.2f,length),std::max(0.005f,radius),std::clamp(taper,0.0f,0.95f),curve,radial,{sx,sy,sz},{ex,ey,ez}));
     } else {
         junctions::Junction hub{{0,0,0},std::max(0.03f,radius*1.25f)};
         auto left=make_strand(length,radius,taper,curve,-1.0f);
