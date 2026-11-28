@@ -41,7 +41,13 @@ if(GSS_BUILD_TESTS)
 endif()
 
 if(EMSCRIPTEN)
+    # Keep the browser module compact so mobile browsers have less WASM to compile.
+    target_compile_options(glue_saliva_stuff PRIVATE -Oz)
+    set_property(TARGET glue_saliva_stuff PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+
     add_executable(gss_web_demo web/demo.cpp)
+    target_compile_options(gss_web_demo PRIVATE -Oz)
+    set_property(TARGET gss_web_demo PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     target_link_libraries(gss_web_demo PRIVATE GSS::glue_saliva_stuff)
     set_target_properties(gss_web_demo PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/site
@@ -53,6 +59,9 @@ if(EMSCRIPTEN)
         "-sEXPORT_NAME=GSSModule"
         "-sENVIRONMENT=web"
         "-sALLOW_MEMORY_GROWTH=1"
+        "-sFILESYSTEM=0"
+        "-sASSERTIONS=0"
+        "-Oz"
         "-sEXPORTED_FUNCTIONS=['_gss_generate','_gss_vertex_count','_gss_index_count','_gss_vertices_ptr','_gss_indices_ptr']"
         "-sEXPORTED_RUNTIME_METHODS=['HEAPF32','HEAPU32']"
     )
