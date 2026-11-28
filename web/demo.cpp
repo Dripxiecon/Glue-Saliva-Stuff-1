@@ -1,6 +1,7 @@
 #include "glue_saliva_stuff/junctions/junction.hpp"
 #include <emscripten/emscripten.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <vector>
 
@@ -50,6 +51,24 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
             Vec3 center=start+(finish-start)*t;
             center=center+bendAxis*(curve*std::sin(pi*t));
             center=center+normal*(tubeRadius*0.22f*std::sin(2.0f*pi*t+phase));
+
+            // Contact response: push the strand away from each nearby round
+            // collider in its local cross-section plane. Smooth falloff keeps
+            // the displacement continuous along the tube.
+            for(const auto& contact:contacts) {
+                Vec3 away=center-contact.center;
+                away=away-path*away.dot(path);
+                const float distance=away.length();
+                if(distance<0.0001f) away=widthAxis;
+                else away=away/distance;
+                const float clearance=contact.radius+tubeRadius*0.28f;
+                const float penetration=clearance-distance;
+                if(penetration>0.0f) {
+                    const float influence=std::clamp(penetration/clearance,0.0f,1.0f);
+                    const float smooth=influence*influence*(3.0f-2.0f*influence);
+                    center=center+away*(penetration*0.78f*smooth);
+                }
+            }
             const float widthRadius=(tubeRadius*sheetWidth*endTaper*lattice)+bump;
             const float depthRadius=(tubeRadius*0.42f*endTaper)+bump*0.72f;
             for(int j=0;j<sides;++j) {
@@ -77,6 +96,15 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
     const Vec3 E{-0.05f*scale,1.45f*scale,0.22f*scale};
     const Vec3 F{-1.65f*scale,0.45f*scale,-0.08f*scale};
     const Vec3 G{0.15f*scale,-1.55f*scale,0.12f*scale};
+
+    // Round collision bodies at the contact nodes. Tube centerlines are
+    // deflected around these bodies before the cross-sections are generated.
+    // This produces the characteristic narrow voids between adhered strands.
+    struct ContactCircle { Vec3 center; float radius; };
+    const std::array<ContactCircle,7> contacts{{
+        {A,r*0.62f},{B,r*0.78f},{C,r*0.58f},{D,r*0.70f},
+        {E,r*0.52f},{F,r*0.60f},{G,r*0.62f}
+    }};
 
     // Broad lattice-stretched web sections. Local sphere influences swell the
     // tube into rounded bumps; thin links pull the same surface into filaments.
