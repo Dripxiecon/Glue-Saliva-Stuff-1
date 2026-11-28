@@ -52,9 +52,19 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
             center=center+bendAxis*(curve*std::sin(pi*t));
             center=center+normal*(tubeRadius*0.22f*std::sin(2.0f*pi*t+phase));
 
-            // Contact response: push the strand away from each nearby round
-            // collider in its local cross-section plane. Smooth falloff keeps
-            // the displacement continuous along the tube.
+            // Fixed contact circles distributed across a deliberate,
+            // mostly planar web layout. Each tube is deflected locally around
+            // the contact instead of all paths converging into one tangled hub.
+            struct ContactCircle { Vec3 center; float radius; };
+            const std::array<ContactCircle,7> contacts{{
+                {{-1.55f*scale,-1.15f*scale,0.0f},r*0.62f},
+                {{-0.42f*scale,-0.10f*scale,0.0f},r*0.78f},
+                {{1.25f*scale,1.10f*scale,0.0f},r*0.58f},
+                {{1.35f*scale,-1.20f*scale,0.0f},r*0.70f},
+                {{-0.05f*scale,1.45f*scale,0.0f},r*0.52f},
+                {{-1.65f*scale,0.45f*scale,0.0f},r*0.60f},
+                {{0.15f*scale,-1.55f*scale,0.0f},r*0.62f}
+            }};
             for(const auto& contact:contacts) {
                 Vec3 away=center-contact.center;
                 away=away-path*away.dot(path);
@@ -97,28 +107,19 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
     const Vec3 F{-1.65f*scale,0.45f*scale,-0.08f*scale};
     const Vec3 G{0.15f*scale,-1.55f*scale,0.12f*scale};
 
-    // Round collision bodies at the contact nodes. Tube centerlines are
-    // deflected around these bodies before the cross-sections are generated.
-    // This produces the characteristic narrow voids between adhered strands.
-    struct ContactCircle { Vec3 center; float radius; };
-    const std::array<ContactCircle,7> contacts{{
-        {A,r*0.62f},{B,r*0.78f},{C,r*0.58f},{D,r*0.70f},
-        {E,r*0.52f},{F,r*0.60f},{G,r*0.62f}
-    }};
-
-    // Broad lattice-stretched web sections. Local sphere influences swell the
-    // tube into rounded bumps; thin links pull the same surface into filaments.
-    add_lattice_tube(A,B,{0.0f,0.25f,0.12f},r*0.30f,5.5f,0.48f,r*1.65f,0.14f,0.2f);
-    add_lattice_tube(B,C,{0.0f,-0.25f,0.18f},r*0.24f,3.8f,0.62f,r*1.25f,0.12f,1.1f);
-    add_lattice_tube(B,D,{0.0f,0.15f,-0.22f},r*0.32f,5.0f,0.35f,r*1.8f,0.16f,2.0f);
-    add_lattice_tube(F,B,{0.0f,-0.22f,0.10f},r*0.28f,4.5f,0.68f,r*1.35f,0.13f,2.8f);
-    add_lattice_tube(B,E,{0.0f,0.32f,-0.16f},r*0.22f,3.6f,0.42f,r*1.1f,0.12f,3.6f);
-    add_lattice_tube(E,C,{0.0f,-0.28f,0.16f},r*0.26f,4.2f,0.55f,r*1.2f,0.14f,4.3f);
-    add_lattice_tube(D,G,{0.0f,0.12f,0.15f},r*0.34f,4.8f,0.58f,r*1.8f,0.17f,5.0f);
-    // High-tension strands connecting the membrane patches.
-    add_lattice_tube(A,C,{0.0f,0.18f,0.08f},r*0.16f,1.5f,0.30f,r*0.55f,0.10f,0.7f);
-    add_lattice_tube(F,D,{0.0f,-0.12f,0.18f},r*0.14f,1.4f,0.72f,r*0.50f,0.09f,1.8f);
-    add_lattice_tube(E,G,{0.0f,0.22f,-0.10f},r*0.15f,1.6f,0.42f,r*0.48f,0.10f,2.9f);
+    // Main web perimeter: six connected-looking, non-crossing routes.
+    // Keep the large membranes on the outside so the center stays open.
+    add_lattice_tube(A,F,{0.0f,0.18f,0.0f},r*0.25f,4.6f,0.46f,r*1.45f,0.13f,0.2f);
+    add_lattice_tube(F,E,{0.0f,0.18f,0.0f},r*0.24f,4.2f,0.58f,r*1.30f,0.13f,0.8f);
+    add_lattice_tube(E,C,{0.0f,-0.15f,0.0f},r*0.23f,3.9f,0.48f,r*1.25f,0.12f,1.4f);
+    add_lattice_tube(C,D,{0.0f,-0.18f,0.0f},r*0.25f,4.4f,0.52f,r*1.45f,0.13f,2.0f);
+    add_lattice_tube(D,G,{0.0f,0.12f,0.0f},r*0.26f,4.5f,0.56f,r*1.50f,0.14f,2.6f);
+    add_lattice_tube(G,A,{0.0f,-0.12f,0.0f},r*0.23f,4.0f,0.42f,r*1.25f,0.12f,3.2f);
+    // Three short interior attachments. They create small local contact
+    // clusters without long diagonal strands slicing across the whole web.
+    add_lattice_tube(B,F,{0.0f,0.10f,0.0f},r*0.18f,2.1f,0.55f,r*0.95f,0.10f,3.8f);
+    add_lattice_tube(B,D,{0.0f,-0.10f,0.0f},r*0.18f,2.0f,0.44f,r*0.95f,0.10f,4.4f);
+    add_lattice_tube(B,E,{0.0f,0.12f,0.0f},r*0.16f,1.8f,0.62f,r*0.85f,0.09f,5.0f);
     mesh.mark_dirty();
     return mesh;
 }
