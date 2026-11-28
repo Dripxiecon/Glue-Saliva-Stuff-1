@@ -21,105 +21,98 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
     using math::Vec3;
     geometry::Mesh mesh;
     constexpr float pi=3.14159265359f;
-    const int rings=56;
-    const int sides=std::clamp(radial*2,20,40);
-    const float scale=std::clamp(length/2.0f,0.55f,1.65f);
+    const float scale=std::clamp(length/2.0f,0.55f,1.5f);
     const float r=std::max(0.018f,radius);
+    const int sides=std::clamp(radial*2,16,36);
+    const int rings=80;
 
-    // Lattice-style deformation of a tube. Each sphere influence is represented
-    // as a smooth radial field along the tube, so the circular bump is part of
-    // the same surface instead of a disconnected sphere intersecting it.
-    auto add_lattice_tube=[&](Vec3 start,Vec3 finish,Vec3 bendAxis,
-                               float tubeRadius,float sheetWidth,
-                               float bulgeT,float bulgeAmount,float bulgeSpread,
-                               float phase) {
-        Vec3 path=(finish-start).normalized();
-        Vec3 reference{0.0f,0.0f,1.0f};
-        Vec3 widthAxis=path.cross(reference).normalized();
-        if(widthAxis.length()<0.01f) widthAxis=path.cross({0.0f,1.0f,0.0f}).normalized();
-        Vec3 normal=widthAxis.cross(path).normalized();
+    auto add_tube=[&](auto centerAt, auto radiusAt, int ringCount) {
         const std::uint32_t base=static_cast<std::uint32_t>(mesh.vertices.size());
-        for(int i=0;i<=rings;++i) {
-            const float t=static_cast<float>(i)/rings;
-            const float endTaper=0.18f+0.82f*std::pow(std::max(0.0f,std::sin(pi*t)),0.38f);
-            const float sphereInfluence=std::exp(-std::pow((t-bulgeT)/std::max(0.035f,bulgeSpread),2.0f));
-            const float endSphereA=0.55f*std::exp(-std::pow((t-0.045f)/0.075f,2.0f));
-            const float endSphereB=0.55f*std::exp(-std::pow((t-0.955f)/0.075f,2.0f));
-            const float bump=bulgeAmount*sphereInfluence+ tubeRadius*(endSphereA+endSphereB);
-            const float lattice=1.0f+0.10f*std::sin(t*4.0f*pi+phase)
-                                      +0.045f*std::sin(t*9.0f*pi-phase);
-            Vec3 center=start+(finish-start)*t;
-            center=center+bendAxis*(curve*std::sin(pi*t));
-            center=center+normal*(tubeRadius*0.22f*std::sin(2.0f*pi*t+phase));
-
-            // Fixed contact circles distributed across a deliberate,
-            // mostly planar web layout. Each tube is deflected locally around
-            // the contact instead of all paths converging into one tangled hub.
-            struct ContactCircle { Vec3 center; float radius; };
-            const std::array<ContactCircle,7> contacts{{
-                {{-1.55f*scale,-1.15f*scale,0.0f},r*0.62f},
-                {{-0.42f*scale,-0.10f*scale,0.0f},r*0.78f},
-                {{1.25f*scale,1.10f*scale,0.0f},r*0.58f},
-                {{1.35f*scale,-1.20f*scale,0.0f},r*0.70f},
-                {{-0.05f*scale,1.45f*scale,0.0f},r*0.52f},
-                {{-1.65f*scale,0.45f*scale,0.0f},r*0.60f},
-                {{0.15f*scale,-1.55f*scale,0.0f},r*0.62f}
-            }};
-            for(const auto& contact:contacts) {
-                Vec3 away=center-contact.center;
-                away=away-path*away.dot(path);
-                const float distance=away.length();
-                if(distance<0.0001f) away=widthAxis;
-                else away=away/distance;
-                const float clearance=contact.radius+tubeRadius*0.28f;
-                const float penetration=clearance-distance;
-                if(penetration>0.0f) {
-                    const float influence=std::clamp(penetration/clearance,0.0f,1.0f);
-                    const float smooth=influence*influence*(3.0f-2.0f*influence);
-                    center=center+away*(penetration*0.78f*smooth);
-                }
-            }
-            const float widthRadius=(tubeRadius*sheetWidth*endTaper*lattice)+bump;
-            const float depthRadius=(tubeRadius*0.42f*endTaper)+bump*0.72f;
+        for(int i=0;i<=ringCount;++i) {
+            const float t=static_cast<float>(i)/ringCount;
+            const Vec3 center=centerAt(t);
+            const Vec3 before=centerAt(std::max(0.0f,t-0.002f));
+            const Vec3 after=centerAt(std::min(1.0f,t+0.002f));
+            const Vec3 tangent=(after-before).normalized();
+            Vec3 axisA=tangent.cross({0.0f,0.0f,1.0f}).normalized();
+            if(axisA.length()<0.001f) axisA=tangent.cross({0.0f,1.0f,0.0f}).normalized();
+            const Vec3 axisB=tangent.cross(axisA).normalized();
+            const float rr=std::max(0.002f,radiusAt(t));
             for(int j=0;j<sides;++j) {
                 const float a=2.0f*pi*static_cast<float>(j)/sides;
-                const float angularLattice=1.0f+0.055f*std::sin(3.0f*a+phase+t*5.0f);
-                Vec3 p=center+widthAxis*(std::cos(a)*widthRadius*angularLattice);
-                p=p+normal*(std::sin(a)*depthRadius);
-                mesh.vertices.push_back(p);
+                mesh.vertices.push_back(center+axisA*(std::cos(a)*rr)+axisB*(std::sin(a)*rr));
             }
         }
-        for(int i=0;i<rings;++i) for(int j=0;j<sides;++j) {
+        for(int i=0;i<ringCount;++i) for(int j=0;j<sides;++j) {
             const auto a=base+static_cast<std::uint32_t>(i*sides+j);
             const auto b=base+static_cast<std::uint32_t>(i*sides+(j+1)%sides);
             const auto c=base+static_cast<std::uint32_t>((i+1)*sides+(j+1)%sides);
             const auto d=base+static_cast<std::uint32_t>((i+1)*sides+j);
-            mesh.triangles.push_back({a,d,c});
-            mesh.triangles.push_back({a,c,b});
+            mesh.triangles.push_back({a,d,c}); mesh.triangles.push_back({a,c,b});
         }
     };
 
-    const Vec3 A{-1.55f*scale,-1.15f*scale,0.0f};
-    const Vec3 B{-0.42f*scale,-0.10f*scale,0.18f*scale};
-    const Vec3 C{1.25f*scale,1.10f*scale,0.05f*scale};
-    const Vec3 D{1.35f*scale,-1.20f*scale,-0.12f*scale};
-    const Vec3 E{-0.05f*scale,1.45f*scale,0.22f*scale};
-    const Vec3 F{-1.65f*scale,0.45f*scale,-0.08f*scale};
-    const Vec3 G{0.15f*scale,-1.55f*scale,0.12f*scale};
+    auto add_blob=[&](Vec3 center,Vec3 radii,int lat=12,int lon=20) {
+        const std::uint32_t base=static_cast<std::uint32_t>(mesh.vertices.size());
+        for(int y=0;y<=lat;++y) {
+            const float v=static_cast<float>(y)/lat;
+            const float phi=pi*v;
+            for(int x=0;x<=lon;++x) {
+                const float u=2.0f*pi*static_cast<float>(x)/lon;
+                mesh.vertices.push_back({center.x+radii.x*std::sin(phi)*std::cos(u),
+                                        center.y+radii.y*std::cos(phi),
+                                        center.z+radii.z*std::sin(phi)*std::sin(u)});
+            }
+        }
+        for(int y=0;y<lat;++y) for(int x=0;x<lon;++x) {
+            const auto a=base+static_cast<std::uint32_t>(y*(lon+1)+x);
+            const auto b=a+1, d=a+static_cast<std::uint32_t>(lon+1), c=d+1;
+            mesh.triangles.push_back({a,d,b}); mesh.triangles.push_back({b,d,c});
+        }
+    };
 
-    // Main web perimeter: six connected-looking, non-crossing routes.
-    // Keep the large membranes on the outside so the center stays open.
-    add_lattice_tube(A,F,{0.0f,0.18f,0.0f},r*0.25f,4.6f,0.46f,r*1.45f,0.13f,0.2f);
-    add_lattice_tube(F,E,{0.0f,0.18f,0.0f},r*0.24f,4.2f,0.58f,r*1.30f,0.13f,0.8f);
-    add_lattice_tube(E,C,{0.0f,-0.15f,0.0f},r*0.23f,3.9f,0.48f,r*1.25f,0.12f,1.4f);
-    add_lattice_tube(C,D,{0.0f,-0.18f,0.0f},r*0.25f,4.4f,0.52f,r*1.45f,0.13f,2.0f);
-    add_lattice_tube(D,G,{0.0f,0.12f,0.0f},r*0.26f,4.5f,0.56f,r*1.50f,0.14f,2.6f);
-    add_lattice_tube(G,A,{0.0f,-0.12f,0.0f},r*0.23f,4.0f,0.42f,r*1.25f,0.12f,3.2f);
-    // Three short interior attachments. They create small local contact
-    // clusters without long diagonal strands slicing across the whole web.
-    add_lattice_tube(B,F,{0.0f,0.10f,0.0f},r*0.18f,2.1f,0.55f,r*0.95f,0.10f,3.8f);
-    add_lattice_tube(B,D,{0.0f,-0.10f,0.0f},r*0.18f,2.0f,0.44f,r*0.95f,0.10f,4.4f);
-    add_lattice_tube(B,E,{0.0f,0.12f,0.0f},r*0.16f,1.8f,0.62f,r*0.85f,0.09f,5.0f);
+    // One emitted liquid stream. The central sphere-like bulge is a local
+    // radius deformation of this same tube, not a second intersecting tube.
+    auto mainCenter=[=](float t) {
+        const float impact=std::clamp(t/0.84f,0.0f,1.0f);
+        return Vec3{-0.28f*scale+0.18f*scale*std::sin(t*pi*1.4f)+curve*0.10f*std::sin(t*pi),
+                     1.65f*scale-2.30f*scale*t,
+                     0.04f*scale*std::sin(t*pi*2.0f)};
+    };
+    auto mainRadius=[=](float t) {
+        const float bulge=std::exp(-std::pow((t-0.43f)/0.105f,2.0f));
+        const float taperEnd=std::pow(std::max(0.04f,1.0f-t),0.22f);
+        return r*(0.20f+0.72f*bulge)*taperEnd;
+    };
+    add_tube(mainCenter,mainRadius,rings);
+
+    // Impact split: the stream separates into two ground-hugging branches
+    // only near the landing point, then spreads into shallow puddles.
+    const Vec3 impact{-0.20f*scale,-0.65f*scale,0.0f};
+    auto branch=[&](float side) {
+        auto center=[=](float t) {
+            const float x=impact.x+side*(0.10f+0.88f*t)*scale;
+            const float y=impact.y-0.02f*scale+0.08f*scale*std::sin(pi*t);
+            const float z=impact.z+side*0.05f*scale*std::sin(pi*t);
+            return Vec3{x,y,z};
+        };
+        auto rad=[=](float t) {
+            const float start=0.78f, end=0.20f;
+            return r*(start*(1.0f-t)+end*t)*(0.72f+0.28f*std::sin(pi*t));
+        };
+        add_tube(center,rad,32);
+        const Vec3 end=center(1.0f);
+        add_blob({end.x,end.y-0.035f*scale,end.z},{r*0.95f,r*0.10f,r*0.58f},10,18);
+    };
+    branch(-1.0f); branch(1.0f);
+
+    // Falling droplets detach from the stream; the small flattened deposits
+    // on the floor are their impact puddles. A few droplets remain airborne.
+    add_blob({-0.18f*scale,0.72f*scale,0.08f*scale},{r*0.13f,r*0.18f,r*0.13f},8,12);
+    add_blob({-0.10f*scale,0.28f*scale,0.12f*scale},{r*0.10f,r*0.14f,r*0.10f},8,12);
+    add_blob({-0.22f*scale,-0.02f*scale,-0.10f*scale},{r*0.11f,r*0.15f,r*0.11f},8,12);
+    add_blob({-1.02f*scale,-0.70f*scale,0.02f},{r*0.32f,r*0.07f,r*0.24f},10,16);
+    add_blob({0.72f*scale,-0.70f*scale,-0.02f},{r*0.28f,r*0.06f,r*0.20f},10,16);
     mesh.mark_dirty();
     return mesh;
 }
