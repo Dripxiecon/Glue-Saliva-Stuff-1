@@ -20,81 +20,53 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
     using math::Vec3;
     geometry::Mesh mesh;
     constexpr float pi=3.14159265359f;
-    const int rings=48;
-    const int across=std::clamp(radial*2,20,48);
+    const int rings=56;
+    const int sides=std::clamp(radial*2,20,40);
     const float scale=std::clamp(length/2.0f,0.55f,1.65f);
     const float r=std::max(0.018f,radius);
 
-    // The reference is a web of stretched membranes and filaments,
-    // not one elongated tube or one isolated ribbon.
-    auto add_patch=[&](Vec3 start,Vec3 finish,Vec3 widthAxis,Vec3 bendAxis,
-                        float width,float bulge,float twist) {
-        const Vec3 path=(finish-start).normalized();
-        widthAxis=(widthAxis-path*path.dot(widthAxis)).normalized();
-        if(widthAxis.length()<0.01f) widthAxis=path.cross({0,0,1}).normalized();
-        const Vec3 normal=path.cross(widthAxis).normalized();
+    // Lattice-style deformation of a tube. Each sphere influence is represented
+    // as a smooth radial field along the tube, so the circular bump is part of
+    // the same surface instead of a disconnected sphere intersecting it.
+    auto add_lattice_tube=[&](Vec3 start,Vec3 finish,Vec3 bendAxis,
+                               float tubeRadius,float sheetWidth,
+                               float bulgeT,float bulgeAmount,float bulgeSpread,
+                               float phase) {
+        Vec3 path=(finish-start).normalized();
+        Vec3 reference{0.0f,0.0f,1.0f};
+        Vec3 widthAxis=path.cross(reference).normalized();
+        if(widthAxis.length()<0.01f) widthAxis=path.cross({0.0f,1.0f,0.0f}).normalized();
+        Vec3 normal=widthAxis.cross(path).normalized();
         const std::uint32_t base=static_cast<std::uint32_t>(mesh.vertices.size());
-        const int layerCount=2;
-        const std::uint32_t layerSize=static_cast<std::uint32_t>((rings+1)*(across+1));
-        for(int layer=0;layer<layerCount;++layer) {
-            for(int i=0;i<=rings;++i) {
-                const float t=static_cast<float>(i)/rings;
-                const float envelope=std::pow(std::max(0.001f,std::sin(pi*t)),0.55f);
-                const float lobeA=std::exp(-std::pow((t-0.32f)/0.22f,2.0f));
-                const float lobeB=0.42f*std::exp(-std::pow((t-0.76f)/0.16f,2.0f));
-                const float widthProfile=0.055f+1.05f*lobeA+lobeB;
-                const float w=width*envelope*widthProfile;
-                Vec3 center=start+(finish-start)*t;
-                center=center+bendAxis*(bulge*std::sin(pi*t));
-                center=center+normal*(twist*std::sin(2.0f*pi*t));
-                for(int j=0;j<=across;++j) {
-                    const float u=2.0f*static_cast<float>(j)/across-1.0f;
-                    const float edge=1.0f-0.18f*u*u;
-                    const float ripple=0.045f*r*std::sin(t*9.0f*pi+u*3.1f)*envelope;
-                    const float thick=std::max(0.0015f,r*0.055f)*envelope*(1.0f-0.35f*u*u);
-                    Vec3 p=center+widthAxis*(u*w*0.5f*edge);
-                    p=p+normal*(ripple+(layer==0?thick:-thick));
-                    mesh.vertices.push_back(p);
-                }
+        for(int i=0;i<=rings;++i) {
+            const float t=static_cast<float>(i)/rings;
+            const float endTaper=0.18f+0.82f*std::pow(std::max(0.0f,std::sin(pi*t)),0.38f);
+            const float sphereInfluence=std::exp(-std::pow((t-bulgeT)/std::max(0.035f,bulgeSpread),2.0f));
+            const float endSphereA=0.55f*std::exp(-std::pow((t-0.045f)/0.075f,2.0f));
+            const float endSphereB=0.55f*std::exp(-std::pow((t-0.955f)/0.075f,2.0f));
+            const float bump=bulgeAmount*sphereInfluence+ tubeRadius*(endSphereA+endSphereB);
+            const float lattice=1.0f+0.10f*std::sin(t*4.0f*pi+phase)
+                                      +0.045f*std::sin(t*9.0f*pi-phase);
+            Vec3 center=start+(finish-start)*t;
+            center=center+bendAxis*(curve*std::sin(pi*t));
+            center=center+normal*(tubeRadius*0.22f*std::sin(2.0f*pi*t+phase));
+            const float widthRadius=(tubeRadius*sheetWidth*endTaper*lattice)+bump;
+            const float depthRadius=(tubeRadius*0.42f*endTaper)+bump*0.72f;
+            for(int j=0;j<sides;++j) {
+                const float a=2.0f*pi*static_cast<float>(j)/sides;
+                const float angularLattice=1.0f+0.055f*std::sin(3.0f*a+phase+t*5.0f);
+                Vec3 p=center+widthAxis*(std::cos(a)*widthRadius*angularLattice);
+                p=p+normal*(std::sin(a)*depthRadius);
+                mesh.vertices.push_back(p);
             }
         }
-        auto idx=[&](int layer,int i,int j) {
-            return base+static_cast<std::uint32_t>(layer)*layerSize+
-                   static_cast<std::uint32_t>(i*(across+1)+j);
-        };
-        for(int i=0;i<rings;++i) for(int j=0;j<across;++j) {
-            const auto a=idx(0,i,j),b=idx(0,i,j+1),c=idx(0,i+1,j+1),d=idx(0,i+1,j);
-            mesh.triangles.push_back({a,d,c}); mesh.triangles.push_back({a,c,b});
-            const auto ba=idx(1,i,j),bb=idx(1,i,j+1),bc=idx(1,i+1,j+1),bd=idx(1,i+1,j);
-            mesh.triangles.push_back({ba,bb,bc}); mesh.triangles.push_back({ba,bc,bd});
-        }
-        // Close the two sides and both ends of each membrane.
-        for(int i=0;i<rings;++i) for(int edge : {0,across}) {
-            auto t0=idx(0,i,edge),t1=idx(0,i+1,edge),b0=idx(1,i,edge),b1=idx(1,i+1,edge);
-            mesh.triangles.push_back({t0,t1,b1}); mesh.triangles.push_back({t0,b1,b0});
-        }
-        for(int j=0;j<across;++j) for(int e : {0,rings}) {
-            auto t0=idx(0,e,j),t1=idx(0,e,j+1),b0=idx(1,e,j),b1=idx(1,e,j+1);
-            mesh.triangles.push_back({t0,t1,b1}); mesh.triangles.push_back({t0,b1,b0});
-        }
-    };
-
-    auto add_blob=[&](Vec3 center,float blobRadius) {
-        constexpr int lat=10,lon=18;
-        const std::uint32_t base=static_cast<std::uint32_t>(mesh.vertices.size());
-        for(int y=0;y<=lat;++y) {
-            const float v=pi*static_cast<float>(y)/lat;
-            for(int x=0;x<=lon;++x) {
-                const float u=2.0f*pi*static_cast<float>(x)/lon;
-                const float organic=1.0f+0.10f*std::sin(3.0f*u+v)*std::sin(2.0f*v);
-                mesh.vertices.push_back({center.x+blobRadius*organic*std::sin(v)*std::cos(u),
-                    center.y+blobRadius*organic*std::cos(v),
-                    center.z+blobRadius*organic*std::sin(v)*std::sin(u)});
-            }
-        }
-        for(int y=0;y<lat;++y) for(int x=0;x<lon;++x) {
-            const auto a=base+y*(lon+1)+x,b=a+1,c=a+(lon+1)+1,d=a+(lon+1);
-            mesh.triangles.push_back({a,c,b}); mesh.triangles.push_back({a,d,c});
+        for(int i=0;i<rings;++i) for(int j=0;j<sides;++j) {
+            const auto a=base+static_cast<std::uint32_t>(i*sides+j);
+            const auto b=base+static_cast<std::uint32_t>(i*sides+(j+1)%sides);
+            const auto c=base+static_cast<std::uint32_t>((i+1)*sides+(j+1)%sides);
+            const auto d=base+static_cast<std::uint32_t>((i+1)*sides+j);
+            mesh.triangles.push_back({a,d,c});
+            mesh.triangles.push_back({a,c,b});
         }
     };
 
@@ -104,24 +76,21 @@ gss::geometry::Mesh build_stretched_sheet(float length, float radius, float tape
     const Vec3 D{1.35f*scale,-1.20f*scale,-0.12f*scale};
     const Vec3 E{-0.05f*scale,1.45f*scale,0.22f*scale};
     const Vec3 F{-1.65f*scale,0.45f*scale,-0.08f*scale};
+    const Vec3 G{0.15f*scale,-1.55f*scale,0.12f*scale};
 
-    // Wide sheets flare from pooled anchors and pull into fine web-like threads.
-    add_patch(A,B,{0.0f,0.0f,1.0f},{0.0f,0.35f,0.15f},r*5.8f,curve*0.45f,0.08f*r);
-    add_patch(B,C,{0.0f,0.0f,1.0f},{0.0f,-0.25f,0.25f},r*2.0f,curve*0.35f,0.04f*r);
-    add_patch(B,D,{0.0f,0.0f,1.0f},{0.0f,0.15f,-0.25f},r*4.8f,curve*0.65f,0.06f*r);
-    add_patch(F,B,{0.0f,0.0f,1.0f},{0.0f,-0.25f,0.12f},r*3.2f,curve*0.25f,0.05f*r);
-    add_patch(B,E,{0.0f,0.0f,1.0f},{0.0f,0.35f,-0.18f},r*1.7f,curve*0.4f,0.04f*r);
-    add_patch(E,C,{0.0f,0.0f,1.0f},{0.0f,-0.3f,0.18f},r*2.5f,curve*0.3f,0.05f*r);
-    // Fine connecting strands create the long, high-tension transitions.
-    add_patch(A,C,{0.0f,0.0f,1.0f},{0.0f,0.25f,0.1f},r*0.42f,curve*0.55f,0.02f*r);
-    add_patch(F,D,{0.0f,0.0f,1.0f},{0.0f,-0.15f,0.2f},r*0.34f,curve*0.35f,0.02f*r);
-
-    add_blob(A,r*2.5f); add_blob(B,r*2.1f); add_blob(C,r*1.6f);
-    add_blob(D,r*2.3f); add_blob(E,r*1.35f); add_blob(F,r*1.8f);
-    // Small suspended droplets around the membrane network.
-    add_blob({-0.82f*scale,0.42f*scale,0.28f*scale},r*0.34f);
-    add_blob({0.42f*scale,0.72f*scale,-0.20f*scale},r*0.27f);
-    add_blob({0.86f*scale,-0.38f*scale,0.25f*scale},r*0.30f);
+    // Broad lattice-stretched web sections. Local sphere influences swell the
+    // tube into rounded bumps; thin links pull the same surface into filaments.
+    add_lattice_tube(A,B,{0.0f,0.25f,0.12f},r*0.30f,5.5f,0.48f,r*1.65f,0.14f,0.2f);
+    add_lattice_tube(B,C,{0.0f,-0.25f,0.18f},r*0.24f,3.8f,0.62f,r*1.25f,0.12f,1.1f);
+    add_lattice_tube(B,D,{0.0f,0.15f,-0.22f},r*0.32f,5.0f,0.35f,r*1.8f,0.16f,2.0f);
+    add_lattice_tube(F,B,{0.0f,-0.22f,0.10f},r*0.28f,4.5f,0.68f,r*1.35f,0.13f,2.8f);
+    add_lattice_tube(B,E,{0.0f,0.32f,-0.16f},r*0.22f,3.6f,0.42f,r*1.1f,0.12f,3.6f);
+    add_lattice_tube(E,C,{0.0f,-0.28f,0.16f},r*0.26f,4.2f,0.55f,r*1.2f,0.14f,4.3f);
+    add_lattice_tube(D,G,{0.0f,0.12f,0.15f},r*0.34f,4.8f,0.58f,r*1.8f,0.17f,5.0f);
+    // High-tension strands connecting the membrane patches.
+    add_lattice_tube(A,C,{0.0f,0.18f,0.08f},r*0.16f,1.5f,0.30f,r*0.55f,0.10f,0.7f);
+    add_lattice_tube(F,D,{0.0f,-0.12f,0.18f},r*0.14f,1.4f,0.72f,r*0.50f,0.09f,1.8f);
+    add_lattice_tube(E,G,{0.0f,0.22f,-0.10f},r*0.15f,1.6f,0.42f,r*0.48f,0.10f,2.9f);
     mesh.mark_dirty();
     return mesh;
 }
